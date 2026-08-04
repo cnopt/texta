@@ -1,0 +1,112 @@
+.notebook-icon {
+  --icon-width: 58px;
+  --icon-height: 66px;
+  position: relative;
+  width: var(--icon-width);
+  height: var(--icon-height);
+  flex-shrink: 0;
+}
+
+.notebook-icon--small {
+  --icon-width: 28px;
+  --icon-height: 32px;
+}
+
+.notebook-icon-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--icon-height) * -0.0625);
+  width: calc(var(--icon-width) * 0.82);
+  height: calc(var(--icon-height) * 0.125);
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0) 72%);
+  transform: translateX(-50%);
+  filter: blur(2px);
+}
+
+.notebook-icon-face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: calc(var(--icon-width) * 0.205);
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--icon-color) 72%, white) 0%,
+    var(--icon-color) 42%,
+    color-mix(in srgb, var(--icon-color) 68%, black) 100%
+  );
+}
+
+.notebook-icon-spine {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-evenly;
+  width: calc(var(--icon-width) * 0.205);
+  border-radius: calc(var(--icon-width) * 0.205) 0 0 calc(var(--icon-width) * 0.205);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--icon-color) 45%, black) 0%,
+    color-mix(in srgb, var(--icon-color) 62%, black) 72%,
+    transparent 100%
+  );
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.notebook-icon-ring {
+  width: calc(var(--icon-width) * 0.057);
+  height: calc(var(--icon-width) * 0.057);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f4f4f4 0%, #c8c8c8 55%, #8a8a8a 100%);
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.notebook-icon-pages {
+  position: absolute;
+  top: calc(var(--icon-height) * 0.021);
+  right: 0;
+  bottom: calc(var(--icon-height) * 0.021);
+  width: calc(var(--icon-width) * 0.057);
+  border-radius: 0 40px 40px 0;
+  background: linear-gradient(180deg, #ffffff 0%, #ececec 48%, #d8d8d8 100%);
+  box-shadow:
+    -1px 0 0 rgba(255, 255, 255, 0.35),
+    1px 0 2px rgba(0, 0, 0, 0.12),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.notebook-icon-cover-lines {
+  position: absolute;
+  inset: calc(var(--icon-height) * 0.188) calc(var(--icon-width) * 0.182) calc(var(--icon-height) * 0.146) calc(var(--icon-width) * 0.273);
+  opacity: 0.14;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0,
+    transparent 7px,
+    color-mix(in srgb, var(--icon-color) 70%, black) 7px,
+    color-mix(in srgb, var(--icon-color) 70%, black) 8px
+  );
+  pointer-events: none;
+}
+
+.notebook-icon-letter {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: calc(var(--icon-width) * 0.045);
+  font-size: calc(var(--icon-width) * 0.386);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}

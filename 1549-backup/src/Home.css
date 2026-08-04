@@ -1,0 +1,138 @@
+.home {
+  height: 100%;
+  padding: 48px 64px;
+}
+
+.home-header {
+  margin-bottom: 32px;
+}
+
+.home-title {
+  margin: 0 0 20px;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 32px;
+  letter-spacing: -0.64px;
+  color: #ebebeb;
+}
+
+.home-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: #292929;
+}
+
+.home-search-icon {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: #9a9a9a;
+}
+
+.home-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -0.12px;
+  color: #ebebeb;
+}
+
+.home-search-input::placeholder {
+  color: #9a9a9a;
+}
+
+.home-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.home-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+
+.home-create-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 9999px;
+  background: #377aff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -0.2px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.home-add-button {
+  margin-bottom: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -0.12px;
+  color: #377aff;
+  cursor: pointer;
+}
+
+.home-add-button:hover {
+  color: #699bff;
+}
+
+.home-notebook-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.home-notebook-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--notebook-color) 30%, black);
+}
+
+.home-notebook-name {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -0.2px;
+  color: #ebebeb;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-notebook-name:hover {
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .home {
+    padding: 24px 20px;
+  }
+}

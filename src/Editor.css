@@ -1,0 +1,181 @@
+.editor-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 48px 64px;
+}
+
+.editor-focus-sink {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.editor-back-button {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 1;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+
+.editor-back-button:hover {
+  color: #ebebeb;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.editor-page-title {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(60%, calc(100% - 140px));
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  transform: translateX(-50%);
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  color: #6e6e6e;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.editor-missing-text {
+  margin: 0;
+  padding-top: 48px;
+  color: #9a9a9a;
+}
+
+.editor-toolbar {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-toolbar-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 1;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+
+.editor-toolbar-button:hover {
+  color: #ebebeb;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.editor-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.editor-host {
+  position: absolute;
+  inset: 0;
+}
+
+.editor-host .cm-editor {
+  height: 100%;
+}
+
+.cm-format-marker {
+  opacity: 0.35;
+}
+
+.cm-inline-bold {
+  font-weight: 700;
+}
+
+.cm-inline-italic {
+  font-style: italic;
+}
+
+.cm-inline-underline {
+  text-decoration: underline;
+}
+
+/* CodeMirror measures the rendered DOM, so heading spans can carry real sizes
+   and their own line-height without the caret drifting. */
+.cm-inline-h1 {
+  font-size: 1.8em;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.cm-inline-h2 {
+  font-size: 1.5em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.cm-inline-h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+@media (max-width: 768px) {
+  .editor-page {
+    padding: 24px 20px;
+  }
+
+  .editor-back-button {
+    top: 16px;
+    left: 16px;
+  }
+
+  .editor-page-title {
+    top: 16px;
+  }
+
+  .editor-toolbar {
+    top: 16px;
+    right: 12px;
+  }
+}

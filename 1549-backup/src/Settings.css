@@ -1,0 +1,259 @@
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.settings-backdrop--open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.settings-modal {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  height: 44vh;
+  min-height: 320px;
+  padding: 24px 20px 32px;
+  border-radius: 16px 16px 0 0;
+  background: #0f0f0f;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-modal--open {
+  transform: translateY(0);
+}
+
+.settings-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: -8px -4px 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #292929;
+}
+
+.settings-back {
+  position: absolute;
+  top: 0;
+  bottom: 16px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 1;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+
+.settings-back:hover {
+  color: #ebebeb;
+}
+
+.settings-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -0.2px;
+  color: #6e6e6e;
+  text-align: center;
+}
+
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.settings-list {
+  margin: 0;
+  padding: 8px 0 0;
+  list-style: none;
+}
+
+.settings-step {
+  animation: settings-step-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes settings-step-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 4px;
+}
+
+.settings-item-label {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -0.12px;
+  color: #ebebeb;
+}
+
+.settings-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.settings-item-value {
+  min-width: 40px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -0.12px;
+  color: #9a9a9a;
+  text-align: center;
+}
+
+.settings-nav-button,
+.settings-font-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-nav-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.settings-nav-arrow {
+  font-size: 18px;
+  line-height: 1;
+  color: #9a9a9a;
+}
+
+.settings-nav-button:hover .settings-nav-arrow,
+.settings-nav-button:hover .settings-item-label {
+  color: #ebebeb;
+}
+
+.settings-font-option {
+  padding: 2px 0;
+}
+
+.settings-font-option:hover .settings-item-label {
+  color: #ebebeb;
+}
+
+.settings-font-option--selected .settings-item-label {
+  color: #ebebeb;
+}
+
+.settings-font-check {
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: #377aff;
+}
+
+.settings-step-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #292929;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  color: #ebebeb;
+  cursor: pointer;
+}
+
+.settings-step-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #3c3c3c;
+}
+
+.settings-step-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.settings-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 48px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #292929;
+  border-radius: 999px;
+  background: #1a1a1a;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.settings-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #9a9a9a;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.settings-toggle--on {
+  background: rgba(55, 122, 255, 0.22);
+  border-color: #377aff;
+}
+
+.settings-toggle--on .settings-toggle-thumb {
+  transform: translateX(20px);
+  background: #377aff;
+}
+

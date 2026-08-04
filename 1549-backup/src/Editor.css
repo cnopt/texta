@@ -1,0 +1,191 @@
+.editor-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 48px 64px;
+}
+
+.editor-focus-sink {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.editor-back-button {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 1;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+
+.editor-back-button:hover {
+  color: #ebebeb;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.editor-page-title {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(60%, calc(100% - 140px));
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  transform: translateX(-50%);
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  color: #6e6e6e;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.editor-missing-text {
+  margin: 0;
+  padding-top: 48px;
+  color: #9a9a9a;
+}
+
+.editor-toolbar {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-toolbar-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 1;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+
+.editor-toolbar-button:hover {
+  color: #ebebeb;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.editor-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.editor-highlight,
+.editor {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  padding-top: 5rem;
+  padding-bottom: 1.5rem;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font-family: inherit;
+  font-weight: 500;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  overflow: auto;
+}
+
+.editor-highlight {
+  pointer-events: none;
+  color: #ebebeb;
+}
+
+.editor-tag {
+  display: inline;
+}
+
+.editor-inline-format {
+  display: inline;
+}
+
+.editor-format-marker {
+  display: inline;
+  opacity: 0.35;
+}
+
+.editor {
+  color: transparent;
+  caret-color: #ebebeb;
+  -webkit-text-fill-color: transparent;
+}
+
+.editor::selection {
+  background: rgba(55, 122, 255, 0.35);
+}
+
+.editor::placeholder {
+  color: #9a9a9a;
+  -webkit-text-fill-color: #9a9a9a;
+}
+
+@media (max-width: 768px) {
+  .editor-page {
+    padding: 24px 20px;
+  }
+
+  .editor-back-button {
+    top: 16px;
+    left: 16px;
+  }
+
+  .editor-page-title {
+    top: 16px;
+  }
+
+  .editor-toolbar {
+    top: 16px;
+    right: 12px;
+  }
+}

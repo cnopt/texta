@@ -1,0 +1,242 @@
+.notebook-home {
+  position: relative;
+  min-height: 100%;
+  padding: 48px 64px;
+  background: #000;
+}
+
+.notebook-home-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: color-mix(in srgb, var(--notebook-color) 20%, black);
+  opacity: 1;
+  pointer-events: none;
+}
+
+.notebook-home--entering .notebook-home-bg {
+  opacity: 0;
+}
+
+.notebook-home--background .notebook-home-bg,
+.notebook-home--background .notebook-home-gradient {
+  opacity: 1;
+  animation: notebook-home-bg-fade-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.notebook-home--content .notebook-home-bg,
+.notebook-home--content .notebook-home-gradient {
+  opacity: 1;
+}
+
+.notebook-home-gradient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(to bottom, transparent 60%, #000 80%);
+  opacity: 1;
+  pointer-events: none;
+}
+
+.notebook-home--entering .notebook-home-gradient {
+  opacity: 0;
+}
+
+@keyframes notebook-home-bg-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.notebook-home-content {
+  position: relative;
+  z-index: 1;
+}
+
+.notebook-home--entering .notebook-home-stagger-item,
+.notebook-home--entering .notebook-home-fade-item,
+.notebook-home--background .notebook-home-stagger-item,
+.notebook-home--background .notebook-home-fade-item {
+  opacity: 0;
+}
+
+.notebook-home--content .notebook-home-fade-item {
+  opacity: 0;
+}
+
+.notebook-home--content .notebook-home-stagger-item {
+  opacity: 0;
+  transform: translate3d(0, 16px, 0);
+}
+
+.notebook-home--content-animate .notebook-home-fade-item {
+  opacity: 1;
+  transition: opacity 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--stagger-index, 0) * 0.055s);
+}
+
+.notebook-home--content-animate .notebook-home-stagger-item {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--stagger-index, 0) * 0.055s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notebook-home--background .notebook-home-bg,
+  .notebook-home--background .notebook-home-gradient,
+  .notebook-home--content .notebook-home-bg,
+  .notebook-home--content .notebook-home-gradient {
+    animation: none;
+  }
+
+  .notebook-home--content-animate .notebook-home-stagger-item,
+  .notebook-home--content-animate .notebook-home-fade-item {
+    transition: none;
+  }
+
+  .notebook-home--entering .notebook-home-stagger-item,
+  .notebook-home--entering .notebook-home-fade-item,
+  .notebook-home--background .notebook-home-stagger-item,
+  .notebook-home--background .notebook-home-fade-item {
+    opacity: 1;
+  }
+
+  .notebook-home--content .notebook-home-stagger-item,
+  .notebook-home--content .notebook-home-fade-item {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.notebook-home--missing {
+  background: #1f1f1f;
+}
+
+.notebook-home-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 40px;
+}
+
+.notebook-home-circle-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #000;
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  color: #ebebeb;
+  cursor: pointer;
+}
+
+.notebook-home-circle-button:hover {
+  color: #fff;
+}
+
+.notebook-home-hero {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 48px;
+  text-align: left;
+}
+
+.notebook-home-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.notebook-home-name {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 32px;
+  letter-spacing: -0.64px;
+  color: #ebebeb;
+}
+
+.notebook-home-date {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  letter-spacing: -0.08px;
+  color: rgba(235, 235, 235, 0.45);
+}
+
+.notebook-home-pages-heading {
+  margin: 0 0 20px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -0.2px;
+  color: #ebebeb;
+  text-align: left;
+}
+
+.notebook-home-page-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notebook-home-page-button {
+  width: 100%;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 9999px;
+  background: #292929;
+  font-family: inherit;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  color: #ebebeb;
+  cursor: pointer;
+}
+
+.notebook-home-page-button--existing {
+  font-size: 18px;
+  line-height: 24px;
+  text-align: left;
+  padding-left: 40px;
+}
+
+.notebook-home-page-button--create {
+  font-size: 15px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.notebook-home-page-button:hover {
+  background: #333;
+}
+
+.notebook-home-missing-text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  color: #9a9a9a;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .notebook-home {
+    padding: 24px 20px;
+  }
+}

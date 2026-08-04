@@ -1,0 +1,109 @@
+.floating-bar {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 40px;
+  margin-top: 24px;
+  padding: 2px 12px;
+  border: none;
+  border-top: 1px solid rgba(160, 190, 240, 0.12);
+  background: #1a2744;
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+
+@media (max-width: 768px) {
+  /* Negative margins cancel the .editor-page padding so the bar reaches the
+     viewport edges, sitting flush against the keyboard. */
+  .floating-bar {
+    margin: 24px -20px -24px;
+    width: calc(100% + 40px);
+  }
+}
+
+.floating-bar-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #c5d4f0;
+  cursor: pointer;
+}
+
+.floating-bar-button:active,
+.floating-bar-button.is-active {
+  background: rgba(197, 212, 240, 0.14);
+  color: #eef3ff;
+}
+
+.floating-bar-icon {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  color: inherit;
+  user-select: none;
+}
+
+.floating-bar-icon-bold {
+  font-weight: 700;
+}
+
+.floating-bar-icon-italic {
+  font-style: italic;
+  font-weight: 600;
+}
+
+.floating-bar-icon-underline {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.floating-bar-icon-heading {
+  font-weight: 700;
+}
+
+.floating-bar-heading-level {
+  font-size: 0.7em;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.floating-bar-flyout {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(160, 190, 240, 0.16);
+  border-radius: 12px;
+  background: #223256;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  animation: floating-bar-flyout-in 120ms ease-out;
+}
+
+.floating-bar-flyout .floating-bar-button {
+  width: 34px;
+}
+
+@keyframes floating-bar-flyout-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
