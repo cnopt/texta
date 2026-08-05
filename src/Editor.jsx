@@ -9,7 +9,11 @@ import CustomTagsModal from './CustomTagsModal.jsx'
 import FloatingBar from './FloatingBar.jsx'
 import Settings from './Settings.jsx'
 import { getCustomTags } from './customTags.js'
-import { createEditorTheme, formattingDecorations } from './editorExtensions.js'
+import {
+  androidEditorSupport,
+  createEditorTheme,
+  formattingDecorations,
+} from './editorExtensions.js'
 import {
   getEditorSettings,
   saveEditorSettings,
@@ -17,16 +21,54 @@ import {
 import { getFontFamilyStack } from './fontFamilies.js'
 import {
   HEADING_FORMATS,
+  TODO_COMPLETE_FORMAT,
+  TODO_FORMAT,
   closeFormatsAndInsertNewline,
   createFormatState,
+  deleteTodoPrefix,
   getFormatsAt,
   getFormatsForSelection,
   getOpenFormatStack,
+  isTodoCompleteSelection,
+  isTodoSelection,
   toggleFormat,
   toggleHeadingFormat,
+  toggleTodoComplete,
+  toggleTodoItem,
 } from './inlineFormat.js'
 import { getPageById, updatePageContent } from './notebooks.js'
+import { createNote, getNoteById, updateNoteContent } from './notes.js'
+import './CircleButton.css'
+import './ScreenToolbar.css'
 import './Editor.css'
+
+/**
+ * The format helpers rebuild the whole string, so trim it back to the range
+ * that actually changed. That keeps a toggle as one small step in the undo
+ * history instead of a full-document replacement.
+ */
+function toMinimalChange(previous, next) {
+  const maxPrefix = Math.min(previous.length, next.length)
+  let from = 0
+
+  while (from < maxPrefix && previous[from] === next[from]) {
+    from += 1
+  }
+
+  let previousEnd = previous.length
+  let nextEnd = next.length
+
+  while (
+    previousEnd > from &&
+    nextEnd > from &&
+    previous[previousEnd - 1] === next[nextEnd - 1]
+  ) {
+    previousEnd -= 1
+    nextEnd -= 1
+  }
+
+  return { from, to: previousEnd, insert: next.slice(from, nextEnd) }
+}
 
 function getEditorTypography(fontSize, fontFamily) {
   const lineHeight = Math.round((fontSize * (26 / 18)) * 10) / 10
@@ -41,11 +83,16 @@ function getEditorTypography(fontSize, fontFamily) {
 }
 
 export default function Editor() {
-  const { notebookId, pageId } = useParams()
+  const { notebookId, pageId, noteId } = useParams()
   const navigate = useNavigate()
+  const isNotebookPage = Boolean(notebookId && pageId)
+  const isNewNote = noteId === 'new'
+  const isExistingNote = Boolean(noteId && !isNewNote)
   const hostRef = useRef(null)
   const viewRef = useRef(null)
   const focusSinkRef = useRef(null)
+  const latestContentRef = useRef('')
+  const persistedNewNoteRef = useRef(false)
   const themeCompartment = useRef(new Compartment()).current
   const decorationsCompartment = useRef(new Compartment()).current
   const [fontSize, setFontSize] = useState(() => getEditorSettings().fontSize)
@@ -59,7 +106,10 @@ export default function Editor() {
   const [activeFormats, setActiveFormats] = useState(() => createFormatState())
   const [customTags, setCustomTags] = useState(() => getCustomTags())
   const [pageData, setPageData] = useState(() =>
-    notebookId && pageId ? getPageById(notebookId, pageId) : null,
+    isNotebookPage ? getPageById(notebookId, pageId) : null,
+  )
+  const [noteData, setNoteData] = useState(() =>
+    isExistingNote ? getNoteById(noteId) : null,
   )
 
   const floatingBarVisible = editorFocused && !settingsOpen && !tagsOpen
@@ -68,19 +118,31 @@ export default function Editor() {
   // call through to the current render's state.
   const handleUpdateRef = useRef(null)
   const handleEnterRef = useRef(null)
+  const handleBackspaceRef = useRef(null)
 
   handleUpdateRef.current = (update) => {
-    if (update.docChanged && notebookId && pageId) {
-      updatePageContent(notebookId, pageId, update.state.doc.toString())
+    if (update.docChanged) {
+      const content = update.state.doc.toString()
+      latestContentRef.current = content
+
+      if (isNotebookPage) {
+        updatePageContent(notebookId, pageId, content)
+      } else if (isExistingNote) {
+        updateNoteContent(noteId, content)
+      }
     }
 
     if (update.docChanged || update.selectionSet) {
       const { from, to } = update.state.selection.main
       const doc = update.state.doc.toString()
 
-      setActiveFormats(
-        from === to ? getFormatsAt(doc, from) : getFormatsForSelection(doc, from, to),
-      )
+      setActiveFormats({
+        ...(from === to
+          ? getFormatsAt(doc, from)
+          : getFormatsForSelection(doc, from, to)),
+        [TODO_FORMAT]: isTodoSelection(doc, from, to),
+        [TODO_COMPLETE_FORMAT]: isTodoCompleteSelection(doc, from, to),
+      })
     }
 
     if (update.focusChanged) {
@@ -99,7 +161,24 @@ export default function Editor() {
     return true
   }
 
+  handleBackspaceRef.current = (view) => {
+    const { from, to } = view.state.selection.main
+    if (from !== to) return false
+
+    const result = deleteTodoPrefix(view.state.doc.toString(), from)
+    if (!result) return false
+
+    applyTextResult(view, result)
+    return true
+  }
+
   useEffect(() => {
+    // EditContext triggers a Chrome Android bug that scrolls the editor to the
+    // top when tapping to place the cursor.
+    if (Capacitor.getPlatform() === 'android') {
+      EditorView.EDIT_CONTEXT = false
+    }
+
     const view = new EditorView({
       state: EditorState.create({
         doc: '',
@@ -107,10 +186,15 @@ export default function Editor() {
           history(),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ spellcheck: 'true' }),
+          ...androidEditorSupport(),
           placeholder('Start writing...'),
           Prec.high(
             keymap.of([
               { key: 'Enter', run: (target) => handleEnterRef.current(target) },
+              {
+                key: 'Backspace',
+                run: (target) => handleBackspaceRef.current(target),
+              },
             ]),
           ),
           keymap.of([...defaultKeymap, ...historyKeymap]),
@@ -136,25 +220,80 @@ export default function Editor() {
   }, [])
 
   useEffect(() => {
-    if (!notebookId || !pageId) {
+    if (!isNotebookPage) {
       setPageData(null)
       return
     }
 
     setPageData(getPageById(notebookId, pageId))
-  }, [notebookId, pageId])
+  }, [isNotebookPage, notebookId, pageId])
+
+  useEffect(() => {
+    if (!isExistingNote) {
+      setNoteData(null)
+      return
+    }
+
+    setNoteData(getNoteById(noteId))
+  }, [isExistingNote, noteId])
 
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
 
-    const content = pageData?.page.content ?? ''
+    let content = ''
+    if (isNotebookPage) {
+      content = pageData?.page.content ?? ''
+    } else if (isExistingNote) {
+      content = noteData?.content ?? ''
+    }
+
+    latestContentRef.current = content
+
     if (content === view.state.doc.toString()) return
 
     view.dispatch({
       changes: { from: 0, to: view.state.doc.length, insert: content },
     })
-  }, [pageData])
+  }, [pageData, noteData, isNotebookPage, isExistingNote])
+
+  useEffect(() => {
+    persistedNewNoteRef.current = false
+    latestContentRef.current = ''
+  }, [noteId])
+
+  useEffect(() => {
+    return () => {
+      if (!isNewNote || persistedNewNoteRef.current) return
+
+      const content = latestContentRef.current.trim()
+      if (!content) return
+
+      persistedNewNoteRef.current = true
+      createNote({ content })
+    }
+  }, [isNewNote])
+
+  function persistNewNoteIfNeeded() {
+    if (!isNewNote || persistedNewNoteRef.current) return
+
+    const content = latestContentRef.current.trim()
+    if (!content) return
+
+    persistedNewNoteRef.current = true
+    createNote({ content })
+  }
+
+  function handleBack() {
+    persistNewNoteIfNeeded()
+
+    if (isNotebookPage) {
+      navigate(`/notebook/${notebookId}`)
+      return
+    }
+
+    navigate('/')
+  }
 
   useEffect(() => {
     viewRef.current?.dispatch({
@@ -185,24 +324,45 @@ export default function Editor() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
 
-    const listener = Keyboard.addListener('keyboardDidHide', () => {
-      const view = viewRef.current
-      if (!view || !view.hasFocus) return
+    const listeners = []
 
-      focusSinkRef.current?.focus({ preventScroll: true })
-      view.contentDOM.blur()
-    })
+    listeners.push(
+      Keyboard.addListener('keyboardDidHide', () => {
+        const view = viewRef.current
+        if (!view || !view.hasFocus) return
+
+        focusSinkRef.current?.focus({ preventScroll: true })
+        view.contentDOM.blur()
+      }),
+    )
+
+    if (Capacitor.getPlatform() === 'android') {
+      listeners.push(
+        Keyboard.addListener('keyboardDidShow', () => {
+          const view = viewRef.current
+          if (!view?.hasFocus) return
+
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (!view.hasFocus) return
+              const head = view.state.selection.main.head
+              view.dispatch({
+                effects: EditorView.scrollIntoView(head, { y: 'nearest' }),
+              })
+            })
+          })
+        }),
+      )
+    }
 
     return () => {
-      listener.then((handle) => handle.remove())
+      listeners.forEach((listener) => listener.then((handle) => handle.remove()))
     }
   }, [])
 
-  // The format helpers rebuild the whole string; the spike keeps that simple
-  // rather than translating each edit into a minimal change set.
   function applyTextResult(view, result) {
     view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: result.text },
+      changes: toMinimalChange(view.state.doc.toString(), result.text),
       selection: EditorSelection.range(result.selectionStart, result.selectionEnd),
       scrollIntoView: true,
     })
@@ -215,6 +375,18 @@ export default function Editor() {
     const { from, to } = view.state.selection.main
     const doc = view.state.doc.toString()
 
+    if (format === TODO_FORMAT) {
+      applyTextResult(view, toggleTodoItem(doc, from, to))
+      view.focus()
+      return
+    }
+
+    if (format === TODO_COMPLETE_FORMAT) {
+      applyTextResult(view, toggleTodoComplete(doc, from, to))
+      view.focus()
+      return
+    }
+
     applyTextResult(
       view,
       HEADING_FORMATS.includes(format)
@@ -225,24 +397,44 @@ export default function Editor() {
     view.focus()
   }
 
-  if (notebookId && pageId && !pageData) {
+  if (isNotebookPage && !pageData) {
     return (
-      <div className="editor-page">
-        <button
-          type="button"
-          className="editor-back-button"
-          onClick={() => navigate(`/notebook/${notebookId}`)}
-          aria-label="Go back"
-        >
-          ←
-        </button>
+      <div className="editor-page screen-page">
+        <header className="screen-toolbar editor-header">
+          <button
+            type="button"
+            className="circle-button"
+            onClick={() => navigate(`/notebook/${notebookId}`)}
+            aria-label="Go back"
+          >
+            ←
+          </button>
+        </header>
         <p className="editor-missing-text">Page not found.</p>
       </div>
     )
   }
 
+  if (isExistingNote && !noteData) {
+    return (
+      <div className="editor-page screen-page">
+        <header className="screen-toolbar editor-header">
+          <button
+            type="button"
+            className="circle-button"
+            onClick={() => navigate('/')}
+            aria-label="Go back"
+          >
+            ←
+          </button>
+        </header>
+        <p className="editor-missing-text">Note not found.</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="editor-page">
+    <div className="editor-page screen-page">
       <button
         ref={focusSinkRef}
         type="button"
@@ -251,39 +443,44 @@ export default function Editor() {
         aria-hidden="true"
       />
 
-      {notebookId && pageId && (
-        <>
+      <header className="screen-toolbar editor-header">
+        {(isNotebookPage || noteId) ? (
           <button
             type="button"
-            className="editor-back-button"
-            onClick={() => navigate(`/notebook/${notebookId}`)}
+            className="circle-button"
+            onClick={handleBack}
             aria-label="Go back"
           >
             ←
           </button>
+        ) : (
+          <span className="editor-header-spacer" aria-hidden="true" />
+        )}
+
+        {isNotebookPage && (
           <h1 className="editor-page-title">{pageData?.page.title}</h1>
-        </>
-      )}
+        )}
 
-      <div className="editor-toolbar">
-        <button
-          type="button"
-          className="editor-toolbar-button"
-          onClick={() => setSettingsOpen(true)}
-          aria-label="Open settings"
-        >
-          ⛭
-        </button>
+        <div className="editor-header-actions">
+          <button
+            type="button"
+            className="editor-toolbar-button"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Open settings"
+          >
+            ⛭
+          </button>
 
-        <button
-          type="button"
-          className="editor-toolbar-button"
-          onClick={() => setTagsOpen(true)}
-          aria-label="Open custom tags"
-        >
-          #
-        </button>
-      </div>
+          <button
+            type="button"
+            className="editor-toolbar-button"
+            onClick={() => setTagsOpen(true)}
+            aria-label="Open custom tags"
+          >
+            #
+          </button>
+        </div>
+      </header>
 
       <div className="editor-shell">
         <div ref={hostRef} className="editor-host" />

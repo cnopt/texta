@@ -1,6 +1,59 @@
+import { Capacitor } from '@capacitor/core'
 import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
-import { HEADING_FORMATS, parseInlineFormats } from './inlineFormat.js'
+import {
+  HEADING_FORMATS,
+  TODO_COMPLETE_PREFIX,
+  parseInlineFormats,
+} from './inlineFormat.js'
 import { getTagStyleString } from './tagStyles.js'
+
+const isAndroid =
+  Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
+
+let pendingAndroidScrollFrame = 0
+
+function isCursorVisible(view, head) {
+  const coords = view.coordsAtPos(head)
+  if (!coords) return true
+
+  const bounds = view.scrollDOM.getBoundingClientRect()
+  return coords.top >= bounds.top - 4 && coords.bottom <= bounds.bottom + 4
+}
+
+function scheduleAndroidCursorScroll(view) {
+  cancelAnimationFrame(pendingAndroidScrollFrame)
+  pendingAndroidScrollFrame = requestAnimationFrame(() => {
+    pendingAndroidScrollFrame = requestAnimationFrame(() => {
+      if (!view.hasFocus) return
+
+      const head = view.state.selection.main.head
+      if (isCursorVisible(view, head)) return
+
+      view.dispatch({
+        effects: EditorView.scrollIntoView(head, { y: 'nearest' }),
+      })
+    })
+  })
+}
+
+/**
+ * Chrome Android can reset the editor scroller to the top when focus moves
+ * into the contenteditable or when the keyboard resizes the viewport.
+ */
+export function androidEditorSupport() {
+  if (!isAndroid) return []
+
+  return [
+    EditorView.updateListener.of((update) => {
+      if (!update.view.hasFocus) return
+      if (!update.selectionSet && !(update.focusChanged && update.view.hasFocus)) {
+        return
+      }
+
+      scheduleAndroidCursorScroll(update.view)
+    }),
+  ]
+}
 
 const FORMAT_CLASS_NAMES = {
   bold: 'cm-inline-bold',
@@ -13,6 +66,11 @@ const FORMAT_CLASS_NAMES = {
 
 const MARKER_DECORATION = Decoration.mark({ class: 'cm-format-marker' })
 const HIDDEN_MARKER_DECORATION = Decoration.replace({})
+const TODO_COMPLETE_DECORATION = Decoration.mark({ class: 'cm-todo-complete' })
+
+function isCompleteTodoLine(lineText) {
+  return lineText.startsWith(TODO_COMPLETE_PREFIX)
+}
 
 function findLineTagMatch(line, tags) {
   const sortedTags = [...tags].sort((a, b) => b.trigger.length - a.trigger.length)
@@ -47,6 +105,10 @@ function getFormatClassName(segment) {
  */
 function collectLineDecorations(line, customTags, showMarkers, decorations, hidden) {
   if (!line.length) return
+
+  if (isCompleteTodoLine(line.text)) {
+    decorations.push(TODO_COMPLETE_DECORATION.range(line.from, line.to))
+  }
 
   const tagMatch = findLineTagMatch(line.text, customTags)
   if (tagMatch) {
@@ -163,7 +225,7 @@ export function createEditorTheme({
         overflow: 'auto',
       },
       '.cm-content': {
-        padding: '5rem 0 1.5rem',
+        padding: '0 0 1.5rem',
         caretColor: '#ebebeb',
       },
       '.cm-line': {

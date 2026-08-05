@@ -1,3 +1,5 @@
+import { createId } from './createId.js'
+
 const STORAGE_KEY = 'text-editor-notebooks'
 
 export function getNotebooks() {
@@ -16,7 +18,7 @@ export function getNotebookById(id) {
 export function createNotebook({ name, icon }) {
   const notebooks = getNotebooks()
   const notebook = {
-    id: crypto.randomUUID(),
+    id: createId(),
     name: name.trim(),
     icon,
     createdAt: new Date().toISOString(),
@@ -29,13 +31,34 @@ export function createNotebook({ name, icon }) {
   return notebook
 }
 
+export function updateNotebook(id, { name, icon }) {
+  const notebooks = getNotebooks()
+  const notebook = notebooks.find((item) => item.id === id)
+  if (!notebook) return null
+
+  notebook.name = name.trim()
+  notebook.icon = icon
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(notebooks))
+
+  return notebook
+}
+
+export function deleteNotebook(id) {
+  const notebooks = getNotebooks()
+  const next = notebooks.filter((item) => item.id !== id)
+  if (next.length === notebooks.length) return false
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  return true
+}
+
 export function createPage(notebookId, { title = 'Untitled' } = {}) {
   const notebooks = getNotebooks()
   const notebook = notebooks.find((item) => item.id === notebookId)
   if (!notebook) return null
 
   const page = {
-    id: crypto.randomUUID(),
+    id: createId(),
     title: title.trim() || 'Untitled',
     content: '',
     createdAt: new Date().toISOString(),

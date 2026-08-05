@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createNotebook } from './notebooks.js'
+import { createNotebook, updateNotebook } from './notebooks.js'
 import NotebookIcon from './NotebookIcon.jsx'
 import { useBottomSheet } from './useBottomSheet.js'
 import './CreateNotebook.css'
@@ -19,31 +19,44 @@ function pickRandomColor() {
   return ICON_COLORS[Math.floor(Math.random() * ICON_COLORS.length)]
 }
 
-export default function CreateNotebook({ isOpen, onClose, onCreated }) {
+export default function CreateNotebook({ isOpen, onClose, onCreated, notebook }) {
+  const isRename = Boolean(notebook)
   const [name, setName] = useState('')
   const [iconColor, setIconColor] = useState(pickRandomColor)
   const { render, active } = useBottomSheet(isOpen)
 
   const letter = name.trim().charAt(0).toUpperCase()
-  const canCreate = name.trim().length > 0
+  const canSubmit = name.trim().length > 0
 
   useEffect(() => {
     if (isOpen) {
-      setIconColor(pickRandomColor())
+      if (notebook) {
+        setName(notebook.name)
+        setIconColor(notebook.icon)
+      } else {
+        setName('')
+        setIconColor(pickRandomColor())
+      }
       return
     }
 
     const timer = setTimeout(() => setName(''), 300)
     return () => clearTimeout(timer)
-  }, [isOpen])
+  }, [isOpen, notebook])
 
   if (!render) return null
 
-  function handleCreate() {
-    if (!canCreate) return
+  function handleSubmit() {
+    if (!canSubmit) return
 
-    const notebook = createNotebook({ name, icon: iconColor })
-    onCreated?.(notebook)
+    if (isRename) {
+      const updated = updateNotebook(notebook.id, { name, icon: iconColor })
+      onCreated?.(updated)
+    } else {
+      const created = createNotebook({ name, icon: iconColor })
+      onCreated?.(created)
+    }
+
     onClose()
   }
 
@@ -72,16 +85,16 @@ export default function CreateNotebook({ isOpen, onClose, onCreated }) {
           </button>
 
           <h2 id="create-notebook-title" className="create-notebook-title">
-            New Notebook
+            {isRename ? 'Rename Notebook' : 'New Notebook'}
           </h2>
 
           <button
             type="button"
             className="create-notebook-submit"
-            onClick={handleCreate}
-            disabled={!canCreate}
+            onClick={handleSubmit}
+            disabled={!canSubmit}
           >
-            Create
+            {isRename ? 'Save' : 'Create'}
           </button>
         </header>
 

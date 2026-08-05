@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 48px 64px;
+  padding: var(--home-padding-top) var(--home-padding-x) var(--home-padding-bottom);
 }
 
 .editor-focus-sink {
@@ -19,50 +19,31 @@
   pointer-events: none;
 }
 
-.editor-back-button {
-  position: absolute;
-  top: 24px;
-  left: 24px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  font-family: inherit;
-  font-size: 20px;
-  line-height: 1;
-  color: #9a9a9a;
-  cursor: pointer;
+.editor-header {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
+  margin-bottom: 4px;
 }
 
-.editor-back-button:hover {
-  color: #ebebeb;
-  background: rgba(255, 255, 255, 0.05);
+.editor-header > .circle-button,
+.editor-header > .editor-header-spacer {
+  grid-column: 1;
 }
 
 .editor-page-title {
-  position: absolute;
-  top: 24px;
-  left: 50%;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: min(60%, calc(100% - 140px));
-  height: 36px;
+  grid-column: 2;
+  justify-self: center;
+  width: 100%;
+  max-width: min(60vw, calc(100vw - 160px));
   margin: 0;
-  padding: 0;
-  transform: translateX(-50%);
+  padding-top: 10px;
   overflow: hidden;
   font-family: inherit;
   font-size: 15px;
   font-weight: 500;
-  line-height: 1;
+  line-height: 20px;
   color: #6e6e6e;
   text-align: center;
   text-overflow: ellipsis;
@@ -70,20 +51,22 @@
   pointer-events: none;
 }
 
-.editor-missing-text {
-  margin: 0;
-  padding-top: 48px;
-  color: #9a9a9a;
+.editor-header-spacer {
+  width: 40px;
+  height: 40px;
 }
 
-.editor-toolbar {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  z-index: 10;
+.editor-header-actions {
+  grid-column: 3;
+  justify-self: end;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.editor-missing-text {
+  margin: 0;
+  color: #9a9a9a;
 }
 
 .editor-toolbar-button {
@@ -140,6 +123,10 @@
   text-decoration: underline;
 }
 
+.cm-todo-complete {
+  color: #5dce7a;
+}
+
 /* CodeMirror measures the rendered DOM, so heading spans can carry real sizes
    and their own line-height without the caret drifting. */
 .cm-inline-h1 {
@@ -162,20 +149,7 @@
 
 @media (max-width: 768px) {
   .editor-page {
-    padding: 24px 20px;
-  }
-
-  .editor-back-button {
-    top: 16px;
-    left: 16px;
-  }
-
-  .editor-page-title {
-    top: 16px;
-  }
-
-  .editor-toolbar {
-    top: 16px;
-    right: 12px;
+    /* Match the fixed formatting bar height so content sits flush above it. */
+    padding-bottom: 40px;
   }
 }

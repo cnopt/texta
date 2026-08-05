@@ -7,53 +7,43 @@
   margin-bottom: 32px;
 }
 
+.home-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
 .home-title {
-  margin: 0 0 20px;
+  margin: 0;
   font-size: 28px;
   font-weight: 500;
   line-height: 32px;
   letter-spacing: -0.64px;
   color: #ebebeb;
+  font-family: 'Bitcount Prop Single';
 }
 
-.home-search {
+.home-settings-button {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 0 16px;
-  border-radius: 12px;
-  background: #292929;
-}
-
-.home-search-icon {
-  flex-shrink: 0;
-  font-size: 18px;
-  line-height: 1;
-  color: #9a9a9a;
-}
-
-.home-search-input {
-  flex: 1;
-  min-width: 0;
-  padding: 14px 0;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border: none;
-  outline: none;
+  border-radius: 50%;
   background: transparent;
   font-family: inherit;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 20px;
-  letter-spacing: -0.12px;
-  color: #ebebeb;
-}
-
-.home-search-input::placeholder {
+  font-size: 20px;
+  line-height: 1;
   color: #9a9a9a;
+  cursor: pointer;
 }
 
-.home-search-input::-webkit-search-cancel-button {
-  display: none;
+.home-settings-button:hover {
+  color: #ebebeb;
 }
 
 .home-empty {
@@ -63,22 +53,29 @@
   min-height: 240px;
 }
 
-.home-create-button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 9999px;
-  background: #377aff;
-  font-family: inherit;
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 24px;
-  letter-spacing: -0.2px;
-  color: #fff;
-  cursor: pointer;
+.home-section + .home-section {
+  margin-top: 90px;
 }
 
-.home-add-button {
-  margin-bottom: 20px;
+.home-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.home-section-heading {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -0.2px;
+  color: #ebebeb;
+  opacity: 0.95;
+}
+
+.home-section-create {
   padding: 0;
   border: none;
   background: transparent;
@@ -91,8 +88,18 @@
   cursor: pointer;
 }
 
-.home-add-button:hover {
-  color: #699bff;
+
+.home-notes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-notes-grid > li {
+  min-width: 0;
 }
 
 .home-notebook-list {
@@ -125,10 +132,6 @@
   color: #ebebeb;
   text-align: left;
   cursor: pointer;
-}
-
-.home-notebook-name:hover {
-  color: #fff;
 }
 
 @media (max-width: 768px) {

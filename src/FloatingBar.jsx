@@ -81,6 +81,17 @@ export default function FloatingBar({
 
       <button
         type="button"
+        className={`floating-bar-button${activeHeading || headingsOpen ? ' is-active' : ''}`}
+        aria-label="Heading"
+        aria-haspopup="true"
+        aria-expanded={headingsOpen}
+        onClick={() => setHeadingsOpen((open) => !open)}
+      >
+        <span className="floating-bar-icon floating-bar-icon-heading">H</span>
+      </button>
+
+      <button
+        type="button"
         className={`floating-bar-button${activeFormats.bold ? ' is-active' : ''}`}
         aria-label="Bold"
         aria-pressed={Boolean(activeFormats.bold)}
@@ -109,16 +120,42 @@ export default function FloatingBar({
         <span className="floating-bar-icon floating-bar-icon-underline">U</span>
       </button>
 
-      <button
-        type="button"
-        className={`floating-bar-button${activeHeading || headingsOpen ? ' is-active' : ''}`}
-        aria-label="Heading"
-        aria-haspopup="true"
-        aria-expanded={headingsOpen}
-        onClick={() => setHeadingsOpen((open) => !open)}
-      >
-        <span className="floating-bar-icon floating-bar-icon-heading">H</span>
-      </button>
+      <div className="floating-bar-todo-group">
+        <button
+          type="button"
+          className={`floating-bar-button${activeFormats.todo ? ' is-active' : ''}`}
+          aria-label="Todo item"
+          aria-pressed={Boolean(activeFormats.todo)}
+          onClick={() => onToggleFormat?.('todo')}
+        >
+          <svg
+            className="floating-bar-icon floating-bar-icon-todo"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <rect x="4" y="4" width="16" height="16" rx="5" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          className={`floating-bar-button floating-bar-todo-complete${activeFormats.todo ? ' is-visible' : ''}${activeFormats.todoComplete ? ' is-active' : ''}`}
+          aria-label="Complete todo"
+          aria-pressed={Boolean(activeFormats.todoComplete)}
+          aria-hidden={!activeFormats.todo}
+          tabIndex={activeFormats.todo ? 0 : -1}
+          onClick={() => onToggleFormat?.('todoComplete')}
+        >
+          <svg
+            className="floating-bar-icon floating-bar-icon-todo-complete"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <rect x="4" y="4" width="16" height="16" rx="5" />
+            <path d="M8.5 12.5l2.5 2.5 4.5-5" />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }

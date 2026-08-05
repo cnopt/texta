@@ -1,4 +1,5 @@
 import { DEFAULT_TAG_FORMAT } from './tagStyles.js'
+import { createId } from './createId.js'
 
 const STORAGE_KEY = 'text-editor-custom-tags'
 
@@ -32,7 +33,7 @@ export function addCustomTag({ trigger, textColor, bold, italic, underline }) {
   if (tags.some((tag) => tag.trigger === trimmedTrigger)) return null
 
   const tag = normalizeTag({
-    id: crypto.randomUUID(),
+    id: createId(),
     trigger: trimmedTrigger,
     textColor,
     bold,

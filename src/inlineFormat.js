@@ -11,6 +11,30 @@ export const FORMAT_NAMES = Object.keys(FORMAT_MARKERS)
 
 export const HEADING_FORMATS = ['h1', 'h2', 'h3']
 
+export const TODO_FORMAT = 'todo'
+export const TODO_COMPLETE_FORMAT = 'todoComplete'
+
+export const TODO_PREFIX = '\u2610 '
+export const TODO_COMPLETE_PREFIX = '\u2611 '
+
+const TODO_PREFIX_LENGTH = TODO_PREFIX.length
+
+function isTodoLine(lineText) {
+  return (
+    lineText.startsWith(TODO_PREFIX) || lineText.startsWith(TODO_COMPLETE_PREFIX)
+  )
+}
+
+function isCompleteTodoLine(lineText) {
+  return lineText.startsWith(TODO_COMPLETE_PREFIX)
+}
+
+function getTodoPrefix(lineText) {
+  if (lineText.startsWith(TODO_COMPLETE_PREFIX)) return TODO_COMPLETE_PREFIX
+  if (lineText.startsWith(TODO_PREFIX)) return TODO_PREFIX
+  return null
+}
+
 const MARKER_TOKENS = FORMAT_NAMES.map((format) => ({
   format,
   token: FORMAT_MARKERS[format].open,
@@ -176,180 +200,6 @@ export function getFormatsForSelection(text, start, end) {
   return initialized ? formats : createFormatState()
 }
 
-/**
- * Prefer a caret sitting inside empty marker pairs when display positions collapse.
- */
-function findInteriorMarkerCaret(text) {
-  let best = null
-
-  for (let i = 0; i <= text.length; i += 1) {
-    const stack = getOpenFormatStack(text, i)
-    if (!stack.length) continue
-
-    let pos = i
-    let matches = true
-
-    for (const format of [...stack].reverse()) {
-      const close = FORMAT_MARKERS[format].close
-      if (text.slice(pos, pos + close.length) !== close) {
-        matches = false
-        break
-      }
-      pos += close.length
-    }
-
-    if (matches) {
-      best = i
-    }
-  }
-
-  return best
-}
-
-/**
- * Map between storage text (with markers) and display text (markers stripped).
- */
-export function buildFormatDisplayMap(text) {
-  const displayChars = []
-  const displayToStorage = []
-  const storageToDisplay = Array.from({ length: text.length + 1 }, () => 0)
-
-  let displayIndex = 0
-  let i = 0
-
-  while (i < text.length) {
-    const matched = matchMarkerToken(text, i)
-
-    if (matched) {
-      for (let offset = 0; offset < matched.token.length; offset += 1) {
-        storageToDisplay[i + offset] = displayIndex
-      }
-      i += matched.token.length
-      continue
-    }
-
-    displayToStorage[displayIndex] = i
-    storageToDisplay[i] = displayIndex
-    displayChars.push(text[i])
-    displayIndex += 1
-    i += 1
-  }
-
-  storageToDisplay[text.length] = displayIndex
-  const displayText = displayChars.join('')
-
-  function toDisplay(storageIndex) {
-    const clamped = Math.max(0, Math.min(storageIndex, text.length))
-    return storageToDisplay[clamped]
-  }
-
-  function toStorage(displayIdx) {
-    const clamped = Math.max(0, Math.min(displayIdx, displayText.length))
-
-    if (displayText.length === 0) {
-      const interior = findInteriorMarkerCaret(text)
-      return interior == null ? text.length : interior
-    }
-
-    if (clamped >= displayText.length) {
-      const afterLast = displayToStorage[displayText.length - 1] + 1
-      const interior = findInteriorMarkerCaret(text)
-      if (interior != null && interior >= afterLast) {
-        return interior
-      }
-      return afterLast
-    }
-
-    return displayToStorage[clamped]
-  }
-
-  return {
-    displayText,
-    toDisplay,
-    toStorage,
-  }
-}
-
-export function getDisplayText(text, showFormatMarkers) {
-  if (showFormatMarkers) return text
-  return buildFormatDisplayMap(text).displayText
-}
-
-export function mapDisplaySelectionToStorage(text, displayStart, displayEnd) {
-  const map = buildFormatDisplayMap(text)
-  return {
-    start: map.toStorage(displayStart),
-    end: map.toStorage(displayEnd),
-  }
-}
-
-export function mapStorageSelectionToDisplay(text, storageStart, storageEnd) {
-  const map = buildFormatDisplayMap(text)
-  return {
-    start: map.toDisplay(storageStart),
-    end: map.toDisplay(storageEnd),
-  }
-}
-
-/**
- * Apply a textarea edit made against marker-stripped display text back onto storage.
- * preferredStorageCaret keeps inserts after hidden closing markers when display
- * positions are ambiguous (same visual index before/after markers).
- */
-export function applyDisplayTextChange(
-  storageText,
-  oldDisplay,
-  newDisplay,
-  preferredStorageCaret = null,
-) {
-  let prefixLen = 0
-  const minLen = Math.min(oldDisplay.length, newDisplay.length)
-
-  while (
-    prefixLen < minLen &&
-    oldDisplay[prefixLen] === newDisplay[prefixLen]
-  ) {
-    prefixLen += 1
-  }
-
-  let oldSuffix = oldDisplay.length
-  let newSuffix = newDisplay.length
-
-  while (
-    oldSuffix > prefixLen &&
-    newSuffix > prefixLen &&
-    oldDisplay[oldSuffix - 1] === newDisplay[newSuffix - 1]
-  ) {
-    oldSuffix -= 1
-    newSuffix -= 1
-  }
-
-  const map = buildFormatDisplayMap(storageText)
-  let storageStart = map.toStorage(prefixLen)
-  let storageEnd =
-    oldSuffix > prefixLen
-      ? map.toStorage(oldSuffix - 1) + 1
-      : storageStart
-
-  // Pure insert: honor an explicit storage caret when it shares this display index
-  if (
-    oldSuffix === prefixLen &&
-    preferredStorageCaret != null &&
-    map.toDisplay(preferredStorageCaret) === prefixLen
-  ) {
-    storageStart = preferredStorageCaret
-    storageEnd = preferredStorageCaret
-  }
-
-  const inserted = newDisplay.slice(prefixLen, newSuffix)
-
-  return {
-    text: storageText.slice(0, storageStart) + inserted + storageText.slice(storageEnd),
-    selectionStart: storageStart + inserted.length,
-    selectionEnd: storageStart + inserted.length,
-  }
-}
-
 function selectionHasOutsideMarkers(text, start, end, format) {
   const { open, close } = FORMAT_MARKERS[format]
   return (
@@ -501,6 +351,131 @@ export function toggleHeadingFormat(text, start, end, heading) {
     result.selectionEnd,
     heading,
   )
+}
+
+function getLineStart(text, position) {
+  return position > 0 ? text.lastIndexOf('\n', position - 1) + 1 : 0
+}
+
+function getSelectedLines(text, start, end) {
+  const blockStart = getLineStart(text, start)
+  const lineEnd = text.indexOf('\n', end)
+  const blockEnd = lineEnd === -1 ? text.length : lineEnd
+  const lines = []
+  let from = blockStart
+
+  for (const line of text.slice(blockStart, blockEnd).split('\n')) {
+    lines.push({ text: line, from })
+    from += line.length + 1
+  }
+
+  return { blockStart, blockEnd, lines }
+}
+
+export function isTodoSelection(text, start, end) {
+  return getSelectedLines(text, start, end).lines.every((line) =>
+    isTodoLine(line.text),
+  )
+}
+
+export function isTodoCompleteSelection(text, start, end) {
+  return getSelectedLines(text, start, end).lines.every((line) =>
+    isCompleteTodoLine(line.text),
+  )
+}
+
+/**
+ * Add or strip the checkbox prefix on every line the selection touches.
+ * Lines only lose the prefix when all of them already have it, so a mixed
+ * selection is normalised into a todo list first.
+ * Completed markers are cleared together with the prefix.
+ */
+export function toggleTodoItem(text, start, end) {
+  const { blockStart, blockEnd, lines } = getSelectedLines(text, start, end)
+  const adding = !lines.every((line) => isTodoLine(line.text))
+  let startDelta = 0
+  let endDelta = 0
+
+  const nextLines = lines.map((line) => {
+    if (adding) {
+      if (isTodoLine(line.text)) return line.text
+
+      if (start >= line.from) startDelta += TODO_PREFIX_LENGTH
+      if (end >= line.from) endDelta += TODO_PREFIX_LENGTH
+      return TODO_PREFIX + line.text
+    }
+
+    const prefix = getTodoPrefix(line.text)
+    if (!prefix) return line.text
+
+    const prefixEnd = line.from + TODO_PREFIX_LENGTH
+    // A caret sitting inside the prefix collapses to the start of the line.
+    startDelta -= start >= prefixEnd ? TODO_PREFIX_LENGTH : Math.max(0, start - line.from)
+    endDelta -= end >= prefixEnd ? TODO_PREFIX_LENGTH : Math.max(0, end - line.from)
+    return line.text.slice(TODO_PREFIX_LENGTH)
+  })
+
+  return {
+    text: text.slice(0, blockStart) + nextLines.join('\n') + text.slice(blockEnd),
+    selectionStart: start + startDelta,
+    selectionEnd: end + endDelta,
+  }
+}
+
+/**
+ * Swap the checkbox prefix between unchecked and checked on todo lines the
+ * selection touches. Mixed incomplete/complete selections are normalised to
+ * complete first.
+ */
+export function toggleTodoComplete(text, start, end) {
+  const { blockStart, blockEnd, lines } = getSelectedLines(text, start, end)
+  const completing = !lines.every((line) => isCompleteTodoLine(line.text))
+
+  const nextLines = lines.map((line) => {
+    if (!isTodoLine(line.text)) return line.text
+
+    if (completing) {
+      if (isCompleteTodoLine(line.text)) return line.text
+      return TODO_COMPLETE_PREFIX + line.text.slice(TODO_PREFIX_LENGTH)
+    }
+
+    if (!isCompleteTodoLine(line.text)) return line.text
+    return TODO_PREFIX + line.text.slice(TODO_PREFIX_LENGTH)
+  })
+
+  return {
+    text: text.slice(0, blockStart) + nextLines.join('\n') + text.slice(blockEnd),
+    selectionStart: start,
+    selectionEnd: end,
+  }
+}
+
+/**
+ * Backspacing from the start of a todo item's text drops the whole prefix in
+ * one press. Deleting only the space would leave a checkbox glued to the text,
+ * which no longer reads as a todo item anyway.
+ *
+ * Returns null when the caret is not in that position, leaving the default
+ * backspace behaviour in place.
+ */
+export function deleteTodoPrefix(text, caret) {
+  const lineStart = getLineStart(text, caret)
+  const prefix = getTodoPrefix(text.slice(lineStart))
+
+  if (!prefix) return null
+  if (caret !== lineStart + TODO_PREFIX_LENGTH) return null
+
+  const lineEnd = text.indexOf('\n', lineStart)
+  const contentEnd = lineEnd === -1 ? text.length : lineEnd
+
+  return {
+    text:
+      text.slice(0, lineStart) +
+      text.slice(lineStart + TODO_PREFIX_LENGTH, contentEnd) +
+      text.slice(contentEnd),
+    selectionStart: lineStart,
+    selectionEnd: lineStart,
+  }
 }
 
 /**

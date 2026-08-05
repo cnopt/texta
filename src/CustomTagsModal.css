@@ -11,6 +11,7 @@
 .custom-tags-backdrop--open {
   opacity: 1;
   pointer-events: auto;
+  animation: bottom-sheet-backdrop-enter 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .custom-tags-modal {
@@ -35,6 +36,7 @@
 
 .custom-tags-modal--open {
   transform: translateY(0);
+  animation: bottom-sheet-enter 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .custom-tags-header {

@@ -109,3 +109,23 @@ button:focus-visible,
 button:active {
   outline: none;
 }
+
+/* Enter animations for bottom sheets — keyframes run on first mount;
+   CSS transitions alone do not when the open class is applied on insert. */
+@keyframes bottom-sheet-enter {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes bottom-sheet-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

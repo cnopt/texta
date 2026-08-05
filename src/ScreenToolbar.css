@@ -1,0 +1,20 @@
+.screen-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.screen-page {
+  --home-padding-x: 64px;
+  --home-padding-top: 24px;
+  --home-padding-bottom: 48px;
+}
+
+@media (max-width: 768px) {
+  .screen-page {
+    --home-padding-x: 20px;
+    --home-padding-top: 18px;
+    --home-padding-bottom: 24px;
+  }
+}

@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import CreateNotebook from './CreateNotebook.jsx'
 import NewPageTypeModal from './NewPageTypeModal.jsx'
 import NotebookIcon from './NotebookIcon.jsx'
-import { createPage, getNotebookById } from './notebooks.js'
+import PageTab from './PageTab.jsx'
+import { createPage, deleteNotebook, getNotebookById } from './notebooks.js'
+import './CircleButton.css'
+import './ScreenToolbar.css'
 import './NotebookHomeView.css'
 
 function formatCreatedDate(iso) {
@@ -21,6 +25,10 @@ export default function NotebookHomeView() {
   const navigate = useNavigate()
   const [notebook, setNotebook] = useState(() => getNotebookById(id))
   const [pageTypeModalOpen, setPageTypeModalOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const menuRef = useRef(null)
   const shouldAnimateBackground = Boolean(location.state?.transitionBackground)
   const [enterPhase, setEnterPhase] = useState(
     shouldAnimateBackground ? 'entering' : 'idle',
@@ -30,6 +38,28 @@ export default function NotebookHomeView() {
   useEffect(() => {
     setNotebook(getNotebookById(id))
   }, [id])
+
+  useEffect(() => {
+    if (!menuOpen) return undefined
+
+    function handlePointerDown(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false)
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuOpen])
 
   useEffect(() => {
     if (enterPhase !== 'entering') return undefined
@@ -72,8 +102,7 @@ export default function NotebookHomeView() {
   useEffect(() => {
     if (enterPhase !== 'content' || !contentAnimating || !notebook) return undefined
 
-    const staggerItemCount = 3 + notebook.pages.length + 1
-    const animationDuration = (staggerItemCount - 1) * 55 + 450 + 50
+    const animationDuration = 1600
 
     const clearStateTimer = setTimeout(() => {
       setEnterPhase('idle')
@@ -88,11 +117,11 @@ export default function NotebookHomeView() {
 
   if (!notebook) {
     return (
-      <div className="notebook-home notebook-home--missing">
-        <header className="notebook-home-toolbar">
+      <div className="notebook-home notebook-home--missing screen-page">
+        <header className="screen-toolbar notebook-home-toolbar">
           <button
             type="button"
-            className="notebook-home-circle-button"
+            className="circle-button"
             onClick={() => navigate('/')}
             aria-label="Go back"
           >
@@ -111,8 +140,28 @@ export default function NotebookHomeView() {
     }
   }
 
+  function handleRename() {
+    setMenuOpen(false)
+    setRenameOpen(true)
+  }
+
+  function handleRenameSaved() {
+    setNotebook(getNotebookById(notebook.id))
+  }
+
+  function handleDeleteClick() {
+    setMenuOpen(false)
+    setDeleteConfirmOpen(true)
+  }
+
+  function handleConfirmDelete() {
+    deleteNotebook(notebook.id)
+    navigate('/')
+  }
+
   const homeClassName = [
     'notebook-home',
+    'screen-page',
     enterPhase === 'entering' && 'notebook-home--entering',
     enterPhase === 'background' && 'notebook-home--background',
     enterPhase === 'content' && 'notebook-home--content',
@@ -130,76 +179,88 @@ export default function NotebookHomeView() {
       <div className="notebook-home-gradient" aria-hidden="true" />
 
       <div className="notebook-home-content">
-        <header className="notebook-home-toolbar">
-        <button
-          type="button"
-          className="notebook-home-circle-button notebook-home-fade-item"
-          style={{ '--stagger-index': 0 }}
-          onClick={() => navigate('/')}
-          aria-label="Go back"
-        >
-          ←
-        </button>
-
-        <button
-          type="button"
-          className="notebook-home-circle-button notebook-home-fade-item"
-          style={{ '--stagger-index': 0 }}
-          aria-label="More options"
-        >
-          ⋯
-        </button>
-      </header>
-
-      <section
-        className="notebook-home-hero notebook-home-stagger-item"
-        style={{ '--stagger-index': 1 }}
-      >
-        <NotebookIcon
-          color={notebook.icon}
-          letter={notebook.name.trim().charAt(0).toUpperCase()}
-        />
-        <div className="notebook-home-hero-info">
-          <h1 className="notebook-home-name">{notebook.name}</h1>
-          {notebook.createdAt && (
-            <p className="notebook-home-date">
-              Created {formatCreatedDate(notebook.createdAt)}
-            </p>
-          )}
-        </div>
-      </section>
-
-      <section className="notebook-home-pages">
-        <h2
-          className="notebook-home-pages-heading notebook-home-stagger-item"
-          style={{ '--stagger-index': 2 }}
-        >
-          Pages
-        </h2>
-
-        <div className="notebook-home-page-list">
-          {notebook.pages.map((page, pageIndex) => (
-            <button
-              key={page.id}
-              type="button"
-              className="notebook-home-page-button notebook-home-page-button--existing notebook-home-stagger-item"
-              style={{ '--stagger-index': 3 + pageIndex }}
-              onClick={() => navigate(`/notebook/${notebook.id}/page/${page.id}`)}
-            >
-              {page.title}
-            </button>
-          ))}
-
+        <header className="screen-toolbar notebook-home-toolbar">
           <button
             type="button"
-            className="notebook-home-page-button notebook-home-page-button--create notebook-home-stagger-item"
-            style={{ '--stagger-index': 3 + notebook.pages.length }}
-            onClick={() => setPageTypeModalOpen(true)}
+            className="circle-button notebook-home-fade-item"
+            style={{ '--stagger-index': 0 }}
+            onClick={() => navigate('/')}
+            aria-label="Go back"
           >
-            + Create New Page
+            ←
           </button>
-        </div>
-      </section>
+
+          <div className="notebook-home-menu-wrap notebook-home-fade-item" style={{ '--stagger-index': 0 }} ref={menuRef}>
+            <button
+              type="button"
+              className="circle-button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label="More options"
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+            >
+              ⋯
+            </button>
+
+            {menuOpen && (
+              <div className="notebook-home-flyout" role="menu">
+                <button
+                  type="button"
+                  className="notebook-home-flyout-item"
+                  role="menuitem"
+                  onClick={handleRename}
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  className="notebook-home-flyout-item notebook-home-flyout-item--danger"
+                  role="menuitem"
+                  onClick={handleDeleteClick}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        </header>
+
+        <section className="notebook-home-hero">
+          <NotebookIcon
+            color={notebook.icon}
+            letter={notebook.name.trim().charAt(0).toUpperCase()}
+          />
+          <div className="notebook-home-hero-info">
+            <h1 className="notebook-home-name">{notebook.name}</h1>
+            {notebook.createdAt && (
+              <p className="notebook-home-date">
+                Created {formatCreatedDate(notebook.createdAt)}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <div className="notebook-home-hero-divider" aria-hidden="true" />
+
+        <section className="notebook-home-pages">
+          <h2 className="notebook-home-pages-heading">Pages</h2>
+
+          <div className="notebook-home-page-list">
+            {notebook.pages.map((page) => (
+              <PageTab
+                key={page.id}
+                title={page.title}
+                onClick={() => navigate(`/notebook/${notebook.id}/page/${page.id}`)}
+              />
+            ))}
+
+            <PageTab
+              title="+ Create New Page"
+              variant="create"
+              onClick={() => setPageTypeModalOpen(true)}
+            />
+          </div>
+        </section>
       </div>
 
       <NewPageTypeModal
@@ -207,6 +268,53 @@ export default function NotebookHomeView() {
         onClose={() => setPageTypeModalOpen(false)}
         onCreate={handleCreatePage}
       />
+
+      <CreateNotebook
+        isOpen={renameOpen}
+        onClose={() => setRenameOpen(false)}
+        onCreated={handleRenameSaved}
+        notebook={notebook}
+      />
+
+      {deleteConfirmOpen && (
+        <>
+          <div
+            className="notebook-home-confirm-backdrop"
+            onClick={() => setDeleteConfirmOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            className="notebook-home-confirm"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="notebook-delete-title"
+            aria-describedby="notebook-delete-desc"
+          >
+            <h2 id="notebook-delete-title" className="notebook-home-confirm-title">
+              Delete notebook?
+            </h2>
+            <p id="notebook-delete-desc" className="notebook-home-confirm-text">
+              “{notebook.name}” and all of its pages will be permanently deleted.
+            </p>
+            <div className="notebook-home-confirm-actions">
+              <button
+                type="button"
+                className="notebook-home-confirm-button"
+                onClick={() => setDeleteConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="notebook-home-confirm-button notebook-home-confirm-button--danger"
+                onClick={handleConfirmDelete}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
