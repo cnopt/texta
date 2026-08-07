@@ -46,14 +46,14 @@ export default function CreateNotebook({ isOpen, onClose, onCreated, notebook })
 
   if (!render) return null
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!canSubmit) return
 
     if (isRename) {
-      const updated = updateNotebook(notebook.id, { name, icon: iconColor })
+      const updated = await updateNotebook(notebook.id, { name, icon: iconColor })
       onCreated?.(updated)
     } else {
-      const created = createNotebook({ name, icon: iconColor })
+      const created = await createNotebook({ name, icon: iconColor })
       onCreated?.(created)
     }
 
@@ -91,7 +91,7 @@ export default function CreateNotebook({ isOpen, onClose, onCreated, notebook })
           <button
             type="button"
             className="create-notebook-submit"
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             disabled={!canSubmit}
           >
             {isRename ? 'Save' : 'Create'}

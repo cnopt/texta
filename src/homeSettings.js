@@ -1,8 +1,17 @@
-const STORAGE_KEY = 'homeSettings'
+import { readJson, writeJson } from './storage.js'
+
+const FILENAME = 'homeSettings.json'
 
 const QUICK_BAR_OPTIONS = ['search', 'new-note']
 
 const SECTION_IDS = ['notebooks', 'notes']
+
+const NOTE_CARD_DISPLAY_MODES = ['fixed', 'dynamic']
+
+const NOTE_CARD_DISPLAY_MODE_LABELS = {
+  fixed: 'Fixed height',
+  dynamic: 'Dynamic',
+}
 
 const DEFAULT_SETTINGS = {
   quickBar: 'search',
@@ -10,6 +19,7 @@ const DEFAULT_SETTINGS = {
     notebooks: true,
     notes: true,
   },
+  noteCardDisplayMode: 'fixed',
 }
 
 function normalizeQuickBar(value) {
@@ -24,25 +34,31 @@ function normalizeSections(sections) {
   }
 }
 
+function normalizeNoteCardDisplayMode(value) {
+  if (NOTE_CARD_DISPLAY_MODES.includes(value)) return value
+  return DEFAULT_SETTINGS.noteCardDisplayMode
+}
+
 function normalizeSettings(settings) {
   return {
     quickBar: normalizeQuickBar(settings?.quickBar),
     sections: normalizeSections(settings?.sections),
+    noteCardDisplayMode: normalizeNoteCardDisplayMode(settings?.noteCardDisplayMode),
   }
 }
 
-export function getHomeSettings() {
+export async function getHomeSettings() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = await readJson(FILENAME, null)
     if (!stored) return { ...DEFAULT_SETTINGS }
-    return normalizeSettings(JSON.parse(stored))
+    return normalizeSettings(stored)
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
 }
 
-export function saveHomeSettings(partial) {
-  const current = getHomeSettings()
+export async function saveHomeSettings(partial) {
+  const current = await getHomeSettings()
   const merged = {
     ...current,
     ...partial,
@@ -51,8 +67,14 @@ export function saveHomeSettings(partial) {
       : current.sections,
   }
   const next = normalizeSettings(merged)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  await writeJson(FILENAME, next)
   return next
 }
 
-export { DEFAULT_SETTINGS, QUICK_BAR_OPTIONS, SECTION_IDS }
+export {
+  DEFAULT_SETTINGS,
+  QUICK_BAR_OPTIONS,
+  SECTION_IDS,
+  NOTE_CARD_DISPLAY_MODES,
+  NOTE_CARD_DISPLAY_MODE_LABELS,
+}

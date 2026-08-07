@@ -8,7 +8,7 @@ import {
 } from './customTags.js'
 import { getTagStyle } from './tagStyles.js'
 import { getFontFamilyStack } from './fontFamilies.js'
-import { getEditorSettings } from './editorSettings.js'
+import { DEFAULT_SETTINGS } from './editorSettings.js'
 import { useBottomSheet } from './useBottomSheet.js'
 import './CustomTagsModal.css'
 
@@ -57,14 +57,14 @@ function FormatToggleButtons({ bold, italic, underline, onChange }) {
 export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFamily }) {
   const { render, active } = useBottomSheet(isOpen)
   const [step, setStep] = useState('list')
-  const [tags, setTags] = useState(() => getCustomTags())
+  const [tags, setTags] = useState([])
   const [editingTagId, setEditingTagId] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
 
   const isEditing = step === 'edit'
   const canCreate = form.trigger.trim().length > 0
   const previewFontFamily = getFontFamilyStack(
-    fontFamily ?? getEditorSettings().fontFamily,
+    fontFamily ?? DEFAULT_SETTINGS.fontFamily,
   )
 
   const previewTag = {
@@ -76,8 +76,15 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
 
   useEffect(() => {
     if (isOpen) {
-      setTags(getCustomTags())
-      return
+      let cancelled = false
+
+      getCustomTags().then((nextTags) => {
+        if (!cancelled) setTags(nextTags)
+      })
+
+      return () => {
+        cancelled = true
+      }
     }
 
     const timer = setTimeout(() => {
@@ -91,8 +98,8 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
 
   if (!render) return null
 
-  function refreshTags() {
-    const nextTags = getCustomTags()
+  async function refreshTags() {
+    const nextTags = await getCustomTags()
     setTags(nextTags)
     onTagsChange?.(nextTags)
   }
@@ -129,19 +136,19 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
     setStep('edit')
   }
 
-  function handleFormChange(updates) {
+  async function handleFormChange(updates) {
     setForm((current) => ({ ...current, ...updates }))
 
     if (isEditing && editingTagId) {
-      updateCustomTag(editingTagId, updates)
-      refreshTags()
+      await updateCustomTag(editingTagId, updates)
+      await refreshTags()
     }
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!canCreate) return
 
-    const created = addCustomTag({
+    const created = await addCustomTag({
       trigger: form.trigger.trim(),
       textColor: form.textColor,
       bold: form.bold,
@@ -151,14 +158,14 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
 
     if (!created) return
 
-    refreshTags()
+    await refreshTags()
     setStep('list')
     resetForm()
   }
 
-  function handleDeleteTag(id) {
-    deleteCustomTag(id)
-    refreshTags()
+  async function handleDeleteTag(id) {
+    await deleteCustomTag(id)
+    await refreshTags()
 
     if (editingTagId === id) {
       setStep('list')
@@ -198,7 +205,7 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
             <button
               type="button"
               className="custom-tags-submit"
-              onClick={handleCreate}
+              onClick={() => void handleCreate()}
               disabled={!canCreate}
             >
               Create
@@ -238,7 +245,7 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
                       <button
                         type="button"
                         className="custom-tags-delete"
-                        onClick={() => handleDeleteTag(tag.id)}
+                        onClick={() => void handleDeleteTag(tag.id)}
                         aria-label={`Delete tag ${tag.trigger}`}
                       >
                         ×
@@ -267,7 +274,7 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
                   className="custom-tags-input"
                   placeholder='e.g. i:'
                   value={form.trigger}
-                  onChange={(e) => handleFormChange({ trigger: e.target.value })}
+                  onChange={(e) => void handleFormChange({ trigger: e.target.value })}
                   disabled={isEditing}
                   autoFocus={!isEditing}
                 />
@@ -284,7 +291,7 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
                     type="color"
                     className="custom-tags-color-input"
                     value={form.textColor}
-                    onChange={(e) => handleFormChange({ textColor: e.target.value })}
+                    onChange={(e) => void handleFormChange({ textColor: e.target.value })}
                     aria-label="Text colour"
                   />
                   <span className="custom-tags-color-value">{form.textColor}</span>
@@ -297,7 +304,7 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
                   bold={form.bold}
                   italic={form.italic}
                   underline={form.underline}
-                  onChange={handleFormChange}
+                  onChange={(updates) => void handleFormChange(updates)}
                 />
               </div>
 

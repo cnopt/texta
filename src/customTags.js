@@ -1,7 +1,8 @@
 import { DEFAULT_TAG_FORMAT } from './tagStyles.js'
 import { createId } from './createId.js'
+import { readJson, writeJson } from './storage.js'
 
-const STORAGE_KEY = 'text-editor-custom-tags'
+const FILENAME = 'customTags.json'
 
 function normalizeTag(tag) {
   return {
@@ -15,18 +16,18 @@ function normalizeTag(tag) {
   }
 }
 
-export function getCustomTags() {
+export async function getCustomTags() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    const tags = stored ? JSON.parse(stored) : []
+    const stored = await readJson(FILENAME, [])
+    const tags = Array.isArray(stored) ? stored : []
     return tags.map(normalizeTag)
   } catch {
     return []
   }
 }
 
-export function addCustomTag({ trigger, textColor, bold, italic, underline }) {
-  const tags = getCustomTags()
+export async function addCustomTag({ trigger, textColor, bold, italic, underline }) {
+  const tags = await getCustomTags()
   const trimmedTrigger = trigger.trim()
 
   if (!trimmedTrigger || !textColor) return null
@@ -43,13 +44,13 @@ export function addCustomTag({ trigger, textColor, bold, italic, underline }) {
   })
 
   tags.push(tag)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tags))
+  await writeJson(FILENAME, tags)
 
   return tag
 }
 
-export function updateCustomTag(id, updates) {
-  const tags = getCustomTags()
+export async function updateCustomTag(id, updates) {
+  const tags = await getCustomTags()
   const index = tags.findIndex((tag) => tag.id === id)
   if (index === -1) return null
 
@@ -59,14 +60,14 @@ export function updateCustomTag(id, updates) {
   })
 
   tags[index] = nextTag
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tags))
+  await writeJson(FILENAME, tags)
 
   return nextTag
 }
 
-export function deleteCustomTag(id) {
-  const tags = getCustomTags().filter((tag) => tag.id !== id)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tags))
+export async function deleteCustomTag(id) {
+  const tags = (await getCustomTags()).filter((tag) => tag.id !== id)
+  await writeJson(FILENAME, tags)
   return tags
 }
 

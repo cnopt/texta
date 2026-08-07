@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { FONT_FAMILIES } from './fontFamilies.js'
-import { MAX_FONT_SIZE, MIN_FONT_SIZE } from './editorSettings.js'
+import {
+  MAX_FONT_SIZE,
+  MAX_LINE_HEIGHT,
+  MIN_FONT_SIZE,
+  MIN_LINE_HEIGHT,
+  TEXT_ALIGNMENTS,
+  TEXT_ALIGNMENT_LABELS,
+} from './editorSettings.js'
 import { useBottomSheet } from './useBottomSheet.js'
 import './Settings.css'
 
@@ -9,10 +16,18 @@ export default function Settings({
   onClose,
   fontSize,
   onFontSizeChange,
+  lineHeight,
+  onLineHeightChange,
   fontFamily,
   onFontFamilyChange,
+  textAlignment,
+  onTextAlignmentChange,
   displayFormattingMarkers,
   onDisplayFormattingMarkersChange,
+  todoSpacing,
+  onTodoSpacingChange,
+  stayInTodo,
+  onStayInTodoChange,
 }) {
   const { render, active } = useBottomSheet(isOpen)
   const [step, setStep] = useState('main')
@@ -34,8 +49,16 @@ export default function Settings({
     onFontSizeChange(Math.min(MAX_FONT_SIZE, fontSize + 1))
   }
 
+  function decreaseLineHeight() {
+    onLineHeightChange(Math.max(MIN_LINE_HEIGHT, lineHeight - 1))
+  }
+
+  function increaseLineHeight() {
+    onLineHeightChange(Math.min(MAX_LINE_HEIGHT, lineHeight + 1))
+  }
+
   function handleBack() {
-    if (step === 'font-family') {
+    if (step === 'font-family' || step === 'alignment') {
       setStep('main')
       return
     }
@@ -45,6 +68,13 @@ export default function Settings({
 
   const selectedFont =
     FONT_FAMILIES.find((font) => font.id === fontFamily) ?? FONT_FAMILIES[0]
+
+  const settingsTitle =
+    step === 'font-family'
+      ? 'Font family'
+      : step === 'alignment'
+        ? 'Alignment'
+        : 'Editor Settings'
 
   return (
     <>
@@ -71,7 +101,7 @@ export default function Settings({
           </button>
 
           <h2 id="settings-title" className="settings-title">
-            {step === 'font-family' ? 'Font family' : 'Editor Settings'}
+            {settingsTitle}
           </h2>
         </header>
 
@@ -104,6 +134,31 @@ export default function Settings({
               </li>
 
               <li className="settings-item">
+                <span className="settings-item-label">Line height</span>
+                <div className="settings-item-controls">
+                  <button
+                    type="button"
+                    className="settings-step-button"
+                    onClick={decreaseLineHeight}
+                    disabled={lineHeight <= MIN_LINE_HEIGHT}
+                    aria-label="Decrease line height"
+                  >
+                    −
+                  </button>
+                  <span className="settings-item-value">{lineHeight}px</span>
+                  <button
+                    type="button"
+                    className="settings-step-button"
+                    onClick={increaseLineHeight}
+                    disabled={lineHeight >= MAX_LINE_HEIGHT}
+                    aria-label="Increase line height"
+                  >
+                    +
+                  </button>
+                </div>
+              </li>
+
+              <li className="settings-item">
                 <button
                   type="button"
                   className="settings-nav-button"
@@ -112,6 +167,24 @@ export default function Settings({
                   <span className="settings-item-label">Font family</span>
                   <span className="settings-nav-meta">
                     <span className="settings-item-value">{selectedFont.label}</span>
+                    <span className="settings-nav-arrow" aria-hidden="true">
+                      →
+                    </span>
+                  </span>
+                </button>
+              </li>
+
+              <li className="settings-item">
+                <button
+                  type="button"
+                  className="settings-nav-button"
+                  onClick={() => setStep('alignment')}
+                >
+                  <span className="settings-item-label">Alignment</span>
+                  <span className="settings-nav-meta">
+                    <span className="settings-item-value">
+                      {TEXT_ALIGNMENT_LABELS[textAlignment]}
+                    </span>
                     <span className="settings-nav-arrow" aria-hidden="true">
                       →
                     </span>
@@ -136,8 +209,40 @@ export default function Settings({
                   <span className="settings-toggle-thumb" aria-hidden="true" />
                 </button>
               </li>
+
+              <li className="settings-item">
+                <span className="settings-item-label" id="settings-todo-spacing-label">
+                  Todo spacing
+                </span>
+                <button
+                  type="button"
+                  className={`settings-toggle${todoSpacing ? ' settings-toggle--on' : ''}`}
+                  role="switch"
+                  aria-checked={todoSpacing}
+                  aria-labelledby="settings-todo-spacing-label"
+                  onClick={() => onTodoSpacingChange(!todoSpacing)}
+                >
+                  <span className="settings-toggle-thumb" aria-hidden="true" />
+                </button>
+              </li>
+
+              <li className="settings-item">
+                <span className="settings-item-label" id="settings-stay-in-todo-label">
+                  Stay in todo
+                </span>
+                <button
+                  type="button"
+                  className={`settings-toggle${stayInTodo ? ' settings-toggle--on' : ''}`}
+                  role="switch"
+                  aria-checked={stayInTodo}
+                  aria-labelledby="settings-stay-in-todo-label"
+                  onClick={() => onStayInTodoChange(!stayInTodo)}
+                >
+                  <span className="settings-toggle-thumb" aria-hidden="true" />
+                </button>
+              </li>
             </ul>
-          ) : (
+          ) : step === 'font-family' ? (
             <ul key="font-family" className="settings-list settings-step" role="listbox" aria-label="Font family">
               {FONT_FAMILIES.map((font) => {
                 const selected = font.id === selectedFont.id
@@ -153,6 +258,38 @@ export default function Settings({
                       onClick={() => onFontFamilyChange(font.id)}
                     >
                       <span className="settings-item-label">{font.label}</span>
+                      {selected && (
+                        <span className="settings-font-check" aria-hidden="true">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <ul
+              key="alignment"
+              className="settings-list settings-step"
+              role="listbox"
+              aria-label="Alignment"
+            >
+              {TEXT_ALIGNMENTS.map((alignment) => {
+                const selected = alignment === textAlignment
+
+                return (
+                  <li key={alignment} className="settings-item">
+                    <button
+                      type="button"
+                      className={`settings-font-option${selected ? ' settings-font-option--selected' : ''}`}
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => onTextAlignmentChange(alignment)}
+                    >
+                      <span className="settings-item-label">
+                        {TEXT_ALIGNMENT_LABELS[alignment]}
+                      </span>
                       {selected && (
                         <span className="settings-font-check" aria-hidden="true">
                           ✓

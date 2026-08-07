@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { Keyboard } from '@capacitor/keyboard'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -15,27 +15,38 @@ import {
   formattingDecorations,
 } from './editorExtensions.js'
 import {
+  DEFAULT_SETTINGS,
   getEditorSettings,
   saveEditorSettings,
 } from './editorSettings.js'
 import { getFontFamilyStack } from './fontFamilies.js'
 import {
+  CALLOUT_FORMAT,
   HEADING_FORMATS,
+  INFO_FORMAT,
   TODO_COMPLETE_FORMAT,
   TODO_FORMAT,
   closeFormatsAndInsertNewline,
   createFormatState,
+  insertTodoNewline,
+  deleteCalloutPrefix,
+  deleteInfoPrefix,
   deleteTodoPrefix,
   getFormatsAt,
   getFormatsForSelection,
   getOpenFormatStack,
+  isCalloutSelection,
+  isInfoSelection,
   isTodoCompleteSelection,
   isTodoSelection,
+  toggleCallout,
   toggleFormat,
   toggleHeadingFormat,
+  toggleInfo,
   toggleTodoComplete,
   toggleTodoItem,
 } from './inlineFormat.js'
+import { setEditorLeaveHandler } from './editorLeave.js'
 import { getPageById, updatePageContent } from './notebooks.js'
 import { createNote, getNoteById, updateNoteContent } from './notes.js'
 import './CircleButton.css'
@@ -70,15 +81,17 @@ function toMinimalChange(previous, next) {
   return { from, to: previousEnd, insert: next.slice(from, nextEnd) }
 }
 
-function getEditorTypography(fontSize, fontFamily) {
-  const lineHeight = Math.round((fontSize * (26 / 18)) * 10) / 10
-  const letterSpacing = ((fontSize * -0.28) / 18).toFixed(2)
+function getEditorTypography(fontSize, fontFamily, lineHeight) {
+  const letterSpacing =
+    fontFamily === 'DotGothic16'
+      ? '0'
+      : `${((fontSize * -0.28) / 18).toFixed(2)}px`
 
   return {
     fontFamily: getFontFamilyStack(fontFamily),
     fontSize: `${fontSize}px`,
     lineHeight: `${lineHeight}px`,
-    letterSpacing: `${letterSpacing}px`,
+    letterSpacing,
   }
 }
 
@@ -93,24 +106,26 @@ export default function Editor() {
   const focusSinkRef = useRef(null)
   const latestContentRef = useRef('')
   const persistedNewNoteRef = useRef(false)
+  const settingsHydratedRef = useRef(false)
   const themeCompartment = useRef(new Compartment()).current
   const decorationsCompartment = useRef(new Compartment()).current
-  const [fontSize, setFontSize] = useState(() => getEditorSettings().fontSize)
-  const [fontFamily, setFontFamily] = useState(() => getEditorSettings().fontFamily)
+  const [ready, setReady] = useState(false)
+  const [pageData, setPageData] = useState(null)
+  const [noteData, setNoteData] = useState(null)
+  const [fontSize, setFontSize] = useState(DEFAULT_SETTINGS.fontSize)
+  const [lineHeight, setLineHeight] = useState(DEFAULT_SETTINGS.lineHeight)
+  const [fontFamily, setFontFamily] = useState(DEFAULT_SETTINGS.fontFamily)
+  const [textAlignment, setTextAlignment] = useState(DEFAULT_SETTINGS.textAlignment)
   const [displayFormattingMarkers, setDisplayFormattingMarkers] = useState(
-    () => getEditorSettings().displayFormattingMarkers,
+    DEFAULT_SETTINGS.displayFormattingMarkers,
   )
+  const [todoSpacing, setTodoSpacing] = useState(DEFAULT_SETTINGS.todoSpacing)
+  const [stayInTodo, setStayInTodo] = useState(DEFAULT_SETTINGS.stayInTodo)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
   const [activeFormats, setActiveFormats] = useState(() => createFormatState())
-  const [customTags, setCustomTags] = useState(() => getCustomTags())
-  const [pageData, setPageData] = useState(() =>
-    isNotebookPage ? getPageById(notebookId, pageId) : null,
-  )
-  const [noteData, setNoteData] = useState(() =>
-    isExistingNote ? getNoteById(noteId) : null,
-  )
+  const [customTags, setCustomTags] = useState([])
 
   const floatingBarVisible = editorFocused && !settingsOpen && !tagsOpen
 
@@ -126,9 +141,9 @@ export default function Editor() {
       latestContentRef.current = content
 
       if (isNotebookPage) {
-        updatePageContent(notebookId, pageId, content)
+        void updatePageContent(notebookId, pageId, content)
       } else if (isExistingNote) {
-        updateNoteContent(noteId, content)
+        void updateNoteContent(noteId, content)
       }
     }
 
@@ -142,6 +157,8 @@ export default function Editor() {
           : getFormatsForSelection(doc, from, to)),
         [TODO_FORMAT]: isTodoSelection(doc, from, to),
         [TODO_COMPLETE_FORMAT]: isTodoCompleteSelection(doc, from, to),
+        [CALLOUT_FORMAT]: isCalloutSelection(doc, from, to),
+        [INFO_FORMAT]: isInfoSelection(doc, from, to),
       })
     }
 
@@ -155,6 +172,15 @@ export default function Editor() {
     if (from !== to) return false
 
     const doc = view.state.doc.toString()
+
+    if (stayInTodo) {
+      const todoResult = insertTodoNewline(doc, from)
+      if (todoResult) {
+        applyTextResult(view, todoResult)
+        return true
+      }
+    }
+
     if (getOpenFormatStack(doc, from).length === 0) return false
 
     applyTextResult(view, closeFormatsAndInsertNewline(doc, from))
@@ -165,7 +191,11 @@ export default function Editor() {
     const { from, to } = view.state.selection.main
     if (from !== to) return false
 
-    const result = deleteTodoPrefix(view.state.doc.toString(), from)
+    const doc = view.state.doc.toString()
+    const result =
+      deleteTodoPrefix(doc, from) ??
+      deleteCalloutPrefix(doc, from) ??
+      deleteInfoPrefix(doc, from)
     if (!result) return false
 
     applyTextResult(view, result)
@@ -173,15 +203,67 @@ export default function Editor() {
   }
 
   useEffect(() => {
+    let cancelled = false
+
+    async function loadEditorData() {
+      setReady(false)
+      settingsHydratedRef.current = false
+
+      const [settings, tags, page, note] = await Promise.all([
+        getEditorSettings(),
+        getCustomTags(),
+        isNotebookPage ? getPageById(notebookId, pageId) : Promise.resolve(null),
+        isExistingNote ? getNoteById(noteId) : Promise.resolve(null),
+      ])
+
+      if (cancelled) return
+
+      setFontSize(settings.fontSize)
+      setLineHeight(settings.lineHeight)
+      setFontFamily(settings.fontFamily)
+      setTextAlignment(settings.textAlignment)
+      setDisplayFormattingMarkers(settings.displayFormattingMarkers)
+      setTodoSpacing(settings.todoSpacing)
+      setStayInTodo(settings.stayInTodo)
+      setCustomTags(tags)
+      setPageData(page)
+      setNoteData(note)
+      settingsHydratedRef.current = true
+      setReady(true)
+    }
+
+    loadEditorData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isNotebookPage, isExistingNote, notebookId, pageId, noteId])
+
+  // Layout effect so the editor is mounted and filled in before the browser
+  // paints, otherwise the first frame shows an empty document.
+  useLayoutEffect(() => {
+    if (!ready) return undefined
+    if (isNotebookPage && !pageData) return undefined
+    if (isExistingNote && !noteData) return undefined
+    if (!hostRef.current) return undefined
+
     // EditContext triggers a Chrome Android bug that scrolls the editor to the
     // top when tapping to place the cursor.
     if (Capacitor.getPlatform() === 'android') {
       EditorView.EDIT_CONTEXT = false
     }
 
+    const initialContent = isNotebookPage
+      ? (pageData?.page.content ?? '')
+      : isExistingNote
+        ? (noteData?.content ?? '')
+        : ''
+
+    latestContentRef.current = initialContent
+
     const view = new EditorView({
       state: EditorState.create({
-        doc: '',
+        doc: initialContent,
         extensions: [
           history(),
           EditorView.lineWrapping,
@@ -200,7 +282,11 @@ export default function Editor() {
           keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.updateListener.of((update) => handleUpdateRef.current(update)),
           themeCompartment.of(
-            createEditorTheme(getEditorTypography(fontSize, fontFamily)),
+            createEditorTheme({
+              ...getEditorTypography(fontSize, fontFamily, lineHeight),
+              textAlign: textAlignment,
+              todoSpacing,
+            }),
           ),
           decorationsCompartment.of(
             formattingDecorations(customTags, displayFormattingMarkers),
@@ -212,80 +298,43 @@ export default function Editor() {
 
     viewRef.current = view
 
+    if (!initialContent.trim()) {
+      view.focus()
+    }
+
     return () => {
       view.destroy()
       viewRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    if (!isNotebookPage) {
-      setPageData(null)
-      return
-    }
-
-    setPageData(getPageById(notebookId, pageId))
-  }, [isNotebookPage, notebookId, pageId])
-
-  useEffect(() => {
-    if (!isExistingNote) {
-      setNoteData(null)
-      return
-    }
-
-    setNoteData(getNoteById(noteId))
-  }, [isExistingNote, noteId])
-
-  useEffect(() => {
-    const view = viewRef.current
-    if (!view) return
-
-    let content = ''
-    if (isNotebookPage) {
-      content = pageData?.page.content ?? ''
-    } else if (isExistingNote) {
-      content = noteData?.content ?? ''
-    }
-
-    latestContentRef.current = content
-
-    if (content === view.state.doc.toString()) return
-
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: content },
-    })
-  }, [pageData, noteData, isNotebookPage, isExistingNote])
+  }, [ready, isNotebookPage, isExistingNote, notebookId, pageId, noteId])
 
   useEffect(() => {
     persistedNewNoteRef.current = false
     latestContentRef.current = ''
   }, [noteId])
 
-  useEffect(() => {
-    return () => {
-      if (!isNewNote || persistedNewNoteRef.current) return
-
-      const content = latestContentRef.current.trim()
-      if (!content) return
-
-      persistedNewNoteRef.current = true
-      createNote({ content })
-    }
-  }, [isNewNote])
-
-  function persistNewNoteIfNeeded() {
+  async function persistNewNoteIfNeeded() {
     if (!isNewNote || persistedNewNoteRef.current) return
 
     const content = latestContentRef.current.trim()
     if (!content) return
 
     persistedNewNoteRef.current = true
-    createNote({ content })
+    await createNote({ content })
   }
 
-  function handleBack() {
-    persistNewNoteIfNeeded()
+  useEffect(() => {
+    setEditorLeaveHandler(() => persistNewNoteIfNeeded())
+    return () => {
+      setEditorLeaveHandler(null)
+      void persistNewNoteIfNeeded()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNewNote, noteId])
+
+  async function handleBack() {
+    await persistNewNoteIfNeeded()
 
     if (isNotebookPage) {
       navigate(`/notebook/${notebookId}`)
@@ -298,10 +347,14 @@ export default function Editor() {
   useEffect(() => {
     viewRef.current?.dispatch({
       effects: themeCompartment.reconfigure(
-        createEditorTheme(getEditorTypography(fontSize, fontFamily)),
+        createEditorTheme({
+          ...getEditorTypography(fontSize, fontFamily, lineHeight),
+          textAlign: textAlignment,
+          todoSpacing,
+        }),
       ),
     })
-  }, [fontSize, fontFamily, themeCompartment])
+  }, [fontSize, fontFamily, lineHeight, textAlignment, todoSpacing, themeCompartment])
 
   useEffect(() => {
     viewRef.current?.dispatch({
@@ -312,8 +365,18 @@ export default function Editor() {
   }, [customTags, displayFormattingMarkers, decorationsCompartment])
 
   useEffect(() => {
-    saveEditorSettings({ fontSize, fontFamily, displayFormattingMarkers })
-  }, [fontSize, fontFamily, displayFormattingMarkers])
+    if (!settingsHydratedRef.current) return
+
+    void saveEditorSettings({
+      fontSize,
+      lineHeight,
+      fontFamily,
+      textAlignment,
+      displayFormattingMarkers,
+      todoSpacing,
+      stayInTodo,
+    })
+  }, [fontSize, lineHeight, fontFamily, textAlignment, displayFormattingMarkers, todoSpacing, stayInTodo])
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
@@ -387,6 +450,18 @@ export default function Editor() {
       return
     }
 
+    if (format === CALLOUT_FORMAT) {
+      applyTextResult(view, toggleCallout(doc, from, to))
+      view.focus()
+      return
+    }
+
+    if (format === INFO_FORMAT) {
+      applyTextResult(view, toggleInfo(doc, from, to))
+      view.focus()
+      return
+    }
+
     applyTextResult(
       view,
       HEADING_FORMATS.includes(format)
@@ -395,6 +470,10 @@ export default function Editor() {
     )
 
     view.focus()
+  }
+
+  if (!ready) {
+    return <div className="editor-page screen-page" />
   }
 
   if (isNotebookPage && !pageData) {
@@ -448,7 +527,7 @@ export default function Editor() {
           <button
             type="button"
             className="circle-button"
-            onClick={handleBack}
+            onClick={() => void handleBack()}
             aria-label="Go back"
           >
             ←
@@ -497,10 +576,18 @@ export default function Editor() {
         onClose={() => setSettingsOpen(false)}
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
+        lineHeight={lineHeight}
+        onLineHeightChange={setLineHeight}
         fontFamily={fontFamily}
         onFontFamilyChange={setFontFamily}
+        textAlignment={textAlignment}
+        onTextAlignmentChange={setTextAlignment}
         displayFormattingMarkers={displayFormattingMarkers}
         onDisplayFormattingMarkersChange={setDisplayFormattingMarkers}
+        todoSpacing={todoSpacing}
+        onTodoSpacingChange={setTodoSpacing}
+        stayInTodo={stayInTodo}
+        onStayInTodoChange={setStayInTodo}
       />
 
       <CustomTagsModal

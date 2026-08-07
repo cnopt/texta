@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { NOTE_CARD_DISPLAY_MODE_LABELS } from './homeSettings.js'
 import { useBottomSheet } from './useBottomSheet.js'
 import './HomeSettings.css'
 
@@ -12,6 +13,11 @@ const SECTION_CHOICES = [
   { id: 'notes', label: 'Notes' },
 ]
 
+const NOTE_CARD_DISPLAY_CHOICES = [
+  { id: 'fixed', label: NOTE_CARD_DISPLAY_MODE_LABELS.fixed },
+  { id: 'dynamic', label: NOTE_CARD_DISPLAY_MODE_LABELS.dynamic },
+]
+
 export default function HomeSettings({
   isOpen,
   onClose,
@@ -19,6 +25,8 @@ export default function HomeSettings({
   onQuickBarChange,
   sections,
   onSectionChange,
+  noteCardDisplayMode,
+  onNoteCardDisplayModeChange,
 }) {
   const { render, active } = useBottomSheet(isOpen)
   const [step, setStep] = useState('main')
@@ -33,7 +41,7 @@ export default function HomeSettings({
   if (!render) return null
 
   function handleBack() {
-    if (step === 'quick-bar' || step === 'sections') {
+    if (step === 'quick-bar' || step === 'sections' || step === 'note-cards') {
       setStep('main')
       return
     }
@@ -43,6 +51,10 @@ export default function HomeSettings({
 
   const selectedQuickBar =
     QUICK_BAR_CHOICES.find((choice) => choice.id === quickBar) ?? QUICK_BAR_CHOICES[0]
+
+  const selectedNoteCardDisplay =
+    NOTE_CARD_DISPLAY_CHOICES.find((choice) => choice.id === noteCardDisplayMode) ??
+    NOTE_CARD_DISPLAY_CHOICES[0]
 
   const visibleSectionLabels = SECTION_CHOICES.filter((choice) => sections[choice.id]).map(
     (choice) => choice.label,
@@ -80,7 +92,13 @@ export default function HomeSettings({
           </button>
 
           <h2 id="home-settings-title" className="home-settings-title">
-            {step === 'quick-bar' ? 'Quick bar' : step === 'sections' ? 'Sections' : 'Customise homepage'}
+            {step === 'quick-bar'
+              ? 'Quick bar'
+              : step === 'sections'
+                ? 'Sections'
+                : step === 'note-cards'
+                  ? 'Note cards'
+                  : 'Customise homepage'}
           </h2>
         </header>
 
@@ -111,6 +129,23 @@ export default function HomeSettings({
                   <span className="home-settings-item-label">Sections</span>
                   <span className="home-settings-nav-meta">
                     <span className="home-settings-item-value">{sectionsSummary}</span>
+                    <span className="home-settings-nav-arrow" aria-hidden="true">
+                      →
+                    </span>
+                  </span>
+                </button>
+              </li>
+              <li className="home-settings-item">
+                <button
+                  type="button"
+                  className="home-settings-nav-button"
+                  onClick={() => setStep('note-cards')}
+                >
+                  <span className="home-settings-item-label">Note cards</span>
+                  <span className="home-settings-nav-meta">
+                    <span className="home-settings-item-value">
+                      {selectedNoteCardDisplay.label}
+                    </span>
                     <span className="home-settings-nav-arrow" aria-hidden="true">
                       →
                     </span>
@@ -148,7 +183,7 @@ export default function HomeSettings({
                 )
               })}
             </ul>
-          ) : (
+          ) : step === 'sections' ? (
             <ul key="sections" className="home-settings-list home-settings-step" aria-label="Sections">
               {SECTION_CHOICES.map((choice) => {
                 const checked = sections[choice.id]
@@ -164,6 +199,36 @@ export default function HomeSettings({
                         onChange={() => onSectionChange(choice.id, !checked)}
                       />
                     </label>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <ul
+              key="note-cards"
+              className="home-settings-list home-settings-step"
+              role="listbox"
+              aria-label="Note cards"
+            >
+              {NOTE_CARD_DISPLAY_CHOICES.map((choice) => {
+                const selected = choice.id === noteCardDisplayMode
+
+                return (
+                  <li key={choice.id} className="home-settings-item">
+                    <button
+                      type="button"
+                      className={`home-settings-option${selected ? ' home-settings-option--selected' : ''}`}
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => onNoteCardDisplayModeChange(choice.id)}
+                    >
+                      <span className="home-settings-item-label">{choice.label}</span>
+                      {selected && (
+                        <span className="home-settings-check" aria-hidden="true">
+                          ✓
+                        </span>
+                      )}
+                    </button>
                   </li>
                 )
               })}

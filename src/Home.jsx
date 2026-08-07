@@ -6,25 +6,51 @@ import QuickBarNewNoteBar from './QuickBarNewNoteBar.jsx'
 import QuickBarSearchBar from './QuickBarSearchBar.jsx'
 import HomeSettings from './HomeSettings.jsx'
 import NotebookIcon from './NotebookIcon.jsx'
-import { getHomeSettings, saveHomeSettings } from './homeSettings.js'
+import { DEFAULT_SETTINGS, getHomeSettings, saveHomeSettings } from './homeSettings.js'
 import { getNotebooks } from './notebooks.js'
 import { getNotes } from './notes.js'
+import { getNoteCardMetrics } from './noteCardGrid.js'
+import { getDisplayText } from './inlineFormat.js'
 import './Home.css'
 
 export default function Home() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [notebooks, setNotebooks] = useState(() => getNotebooks())
-  const [notes, setNotes] = useState(() => getNotes())
+  const [notebooks, setNotebooks] = useState([])
+  const [notes, setNotes] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [quickBar, setQuickBar] = useState(() => getHomeSettings().quickBar)
-  const [sections, setSections] = useState(() => getHomeSettings().sections)
+  const [quickBar, setQuickBar] = useState(DEFAULT_SETTINGS.quickBar)
+  const [sections, setSections] = useState(DEFAULT_SETTINGS.sections)
+  const [noteCardDisplayMode, setNoteCardDisplayMode] = useState(
+    DEFAULT_SETTINGS.noteCardDisplayMode,
+  )
 
   useEffect(() => {
-    setNotebooks(getNotebooks())
-    setNotes(getNotes())
+    let cancelled = false
+
+    async function loadHomeData() {
+      const [nextNotebooks, nextNotes, homeSettings] = await Promise.all([
+        getNotebooks(),
+        getNotes(),
+        getHomeSettings(),
+      ])
+
+      if (cancelled) return
+
+      setNotebooks(nextNotebooks)
+      setNotes(nextNotes)
+      setQuickBar(homeSettings.quickBar)
+      setSections(homeSettings.sections)
+      setNoteCardDisplayMode(homeSettings.noteCardDisplayMode)
+    }
+
+    loadHomeData()
+
+    return () => {
+      cancelled = true
+    }
   }, [location.key])
 
   const filteredNotebooks =
@@ -42,19 +68,24 @@ export default function Home() {
     setCreateOpen(true)
   }
 
-  function handleNotebookCreated() {
-    setNotebooks(getNotebooks())
+  async function handleNotebookCreated() {
+    setNotebooks(await getNotebooks())
   }
 
   function handleQuickBarChange(nextQuickBar) {
     setQuickBar(nextQuickBar)
-    saveHomeSettings({ quickBar: nextQuickBar })
+    void saveHomeSettings({ quickBar: nextQuickBar })
   }
 
   function handleSectionChange(sectionId, visible) {
     const nextSections = { ...sections, [sectionId]: visible }
     setSections(nextSections)
-    saveHomeSettings({ sections: { [sectionId]: visible } })
+    void saveHomeSettings({ sections: { [sectionId]: visible } })
+  }
+
+  function handleNoteCardDisplayModeChange(nextMode) {
+    setNoteCardDisplayMode(nextMode)
+    void saveHomeSettings({ noteCardDisplayMode: nextMode })
   }
 
   function handleCreateNote() {
@@ -134,15 +165,32 @@ export default function Home() {
           </div>
 
           {sortedNotes.length > 0 && (
-            <ul className="home-notes-grid">
-              {sortedNotes.map((note) => (
-                <li key={note.id}>
-                  <NoteCard
-                    note={note}
-                    onClick={() => navigate(`/note/${note.id}`)}
-                  />
-                </li>
-              ))}
+            <ul
+              className={`home-notes-grid${
+                noteCardDisplayMode === 'dynamic' ? ' home-notes-grid--dynamic' : ''
+              }`}
+            >
+              {sortedNotes.map((note) => {
+                const preview = getDisplayText(note.content).trim() || 'Empty note'
+                const metrics =
+                  noteCardDisplayMode === 'dynamic' ? getNoteCardMetrics(preview) : null
+
+                return (
+                  <li
+                    key={note.id}
+                    style={
+                      metrics ? { gridRowEnd: `span ${metrics.rowSpan}` } : undefined
+                    }
+                  >
+                    <NoteCard
+                      note={note}
+                      displayMode={noteCardDisplayMode}
+                      dynamicMetrics={metrics}
+                      onClick={() => navigate(`/note/${note.id}`)}
+                    />
+                  </li>
+                )
+              })}
             </ul>
           )}
         </section>
@@ -161,6 +209,8 @@ export default function Home() {
         onQuickBarChange={handleQuickBarChange}
         sections={sections}
         onSectionChange={handleSectionChange}
+        noteCardDisplayMode={noteCardDisplayMode}
+        onNoteCardDisplayModeChange={handleNoteCardDisplayModeChange}
       />
     </div>
   )

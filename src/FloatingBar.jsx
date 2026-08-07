@@ -156,6 +156,40 @@ export default function FloatingBar({
           </svg>
         </button>
       </div>
+
+      <button
+        type="button"
+        className={`floating-bar-button${activeFormats.callout ? ' is-active' : ''}`}
+        aria-label="Callout"
+        aria-pressed={Boolean(activeFormats.callout)}
+        onClick={() => onToggleFormat?.('callout')}
+      >
+        <svg
+          className="floating-bar-icon floating-bar-icon-callout"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <rect x="5" y="5" width="14" height="14" rx="2.5" />
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        className={`floating-bar-button${activeFormats.info ? ' is-active' : ''}`}
+        aria-label="Info"
+        aria-pressed={Boolean(activeFormats.info)}
+        onClick={() => onToggleFormat?.('info')}
+      >
+        <svg
+          className="floating-bar-icon floating-bar-icon-info"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 11v5" />
+          <circle className="floating-bar-icon-info-dot" cx="12" cy="8" r="1" />
+        </svg>
+      </button>
     </div>
   )
 }

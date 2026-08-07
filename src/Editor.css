@@ -123,10 +123,6 @@
   text-decoration: underline;
 }
 
-.cm-todo-complete {
-  color: #5dce7a;
-}
-
 /* CodeMirror measures the rendered DOM, so heading spans can carry real sizes
    and their own line-height without the caret drifting. */
 .cm-inline-h1 {

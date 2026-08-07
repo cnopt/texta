@@ -1,22 +1,24 @@
 import { createId } from './createId.js'
+import { readJson, writeJson } from './storage.js'
 
-const STORAGE_KEY = 'text-editor-notebooks'
+const FILENAME = 'notebooks.json'
 
-export function getNotebooks() {
+export async function getNotebooks() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : []
+    const stored = await readJson(FILENAME, [])
+    return Array.isArray(stored) ? stored : []
   } catch {
     return []
   }
 }
 
-export function getNotebookById(id) {
-  return getNotebooks().find((notebook) => notebook.id === id) ?? null
+export async function getNotebookById(id) {
+  const notebooks = await getNotebooks()
+  return notebooks.find((notebook) => notebook.id === id) ?? null
 }
 
-export function createNotebook({ name, icon }) {
-  const notebooks = getNotebooks()
+export async function createNotebook({ name, icon }) {
+  const notebooks = await getNotebooks()
   const notebook = {
     id: createId(),
     name: name.trim(),
@@ -26,34 +28,34 @@ export function createNotebook({ name, icon }) {
   }
 
   notebooks.push(notebook)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notebooks))
+  await writeJson(FILENAME, notebooks)
 
   return notebook
 }
 
-export function updateNotebook(id, { name, icon }) {
-  const notebooks = getNotebooks()
+export async function updateNotebook(id, { name, icon }) {
+  const notebooks = await getNotebooks()
   const notebook = notebooks.find((item) => item.id === id)
   if (!notebook) return null
 
   notebook.name = name.trim()
   notebook.icon = icon
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notebooks))
+  await writeJson(FILENAME, notebooks)
 
   return notebook
 }
 
-export function deleteNotebook(id) {
-  const notebooks = getNotebooks()
+export async function deleteNotebook(id) {
+  const notebooks = await getNotebooks()
   const next = notebooks.filter((item) => item.id !== id)
   if (next.length === notebooks.length) return false
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  await writeJson(FILENAME, next)
   return true
 }
 
-export function createPage(notebookId, { title = 'Untitled' } = {}) {
-  const notebooks = getNotebooks()
+export async function createPage(notebookId, { title = 'Untitled' } = {}) {
+  const notebooks = await getNotebooks()
   const notebook = notebooks.find((item) => item.id === notebookId)
   if (!notebook) return null
 
@@ -65,13 +67,13 @@ export function createPage(notebookId, { title = 'Untitled' } = {}) {
   }
 
   notebook.pages.push(page)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notebooks))
+  await writeJson(FILENAME, notebooks)
 
   return page
 }
 
-export function getPageById(notebookId, pageId) {
-  const notebook = getNotebookById(notebookId)
+export async function getPageById(notebookId, pageId) {
+  const notebook = await getNotebookById(notebookId)
   if (!notebook) return null
 
   const page = notebook.pages.find((item) => item.id === pageId) ?? null
@@ -80,8 +82,8 @@ export function getPageById(notebookId, pageId) {
   return { notebook, page }
 }
 
-export function updatePageContent(notebookId, pageId, content) {
-  const notebooks = getNotebooks()
+export async function updatePageContent(notebookId, pageId, content) {
+  const notebooks = await getNotebooks()
   const notebook = notebooks.find((item) => item.id === notebookId)
   if (!notebook) return null
 
@@ -89,7 +91,7 @@ export function updatePageContent(notebookId, pageId, content) {
   if (!page) return null
 
   page.content = content
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notebooks))
+  await writeJson(FILENAME, notebooks)
 
   return page
 }

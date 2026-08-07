@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { App } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
+import { runEditorLeaveHandler } from './editorLeave.js'
 
 /**
  * Overrides Android's hardware back button:
@@ -19,11 +20,20 @@ export default function AndroidBackButton() {
     const listener = App.addListener('backButton', () => {
       const pageMatch = pathname.match(/^\/notebook\/([^/]+)\/page\/[^/]+\/?$/)
       if (pageMatch) {
-        navigate(`/notebook/${pageMatch[1]}`)
+        void runEditorLeaveHandler().then(() => {
+          navigate(`/notebook/${pageMatch[1]}`)
+        })
         return
       }
 
-      if (/^\/notebook\/[^/]+\/?$/.test(pathname) || /^\/note(\/|$)/.test(pathname)) {
+      if (/^\/note(\/|$)/.test(pathname)) {
+        void runEditorLeaveHandler().then(() => {
+          navigate('/')
+        })
+        return
+      }
+
+      if (/^\/notebook\/[^/]+\/?$/.test(pathname)) {
         navigate('/')
         return
       }

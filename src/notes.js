@@ -1,22 +1,23 @@
 import { createId } from './createId.js'
+import { readJson, updateJson } from './storage.js'
 
-const STORAGE_KEY = 'text-editor-notes'
+const FILENAME = 'notes.json'
 
-export function getNotes() {
+export async function getNotes() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : []
+    const stored = await readJson(FILENAME, [])
+    return Array.isArray(stored) ? stored : []
   } catch {
     return []
   }
 }
 
-export function getNoteById(id) {
-  return getNotes().find((note) => note.id === id) ?? null
+export async function getNoteById(id) {
+  const notes = await getNotes()
+  return notes.find((note) => note.id === id) ?? null
 }
 
-export function createNote({ content = '' } = {}) {
-  const notes = getNotes()
+export async function createNote({ content = '' } = {}) {
   const timestamp = new Date().toISOString()
   const note = {
     id: createId(),
@@ -25,29 +26,53 @@ export function createNote({ content = '' } = {}) {
     updatedAt: timestamp,
   }
 
-  notes.push(note)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notes))
+  await updateJson(
+    FILENAME,
+    (stored) => {
+      const notes = Array.isArray(stored) ? stored : []
+      notes.push(note)
+      return notes
+    },
+    [],
+  )
 
   return note
 }
 
-export function updateNoteContent(id, content) {
-  const notes = getNotes()
-  const note = notes.find((item) => item.id === id)
-  if (!note) return null
+export async function updateNoteContent(id, content) {
+  let updated = null
 
-  note.content = content
-  note.updatedAt = new Date().toISOString()
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notes))
+  await updateJson(
+    FILENAME,
+    (stored) => {
+      const notes = Array.isArray(stored) ? stored : []
+      const note = notes.find((item) => item.id === id)
+      if (!note) return notes
 
-  return note
+      note.content = content
+      note.updatedAt = new Date().toISOString()
+      updated = note
+      return notes
+    },
+    [],
+  )
+
+  return updated
 }
 
-export function deleteNote(id) {
-  const notes = getNotes()
-  const next = notes.filter((item) => item.id !== id)
-  if (next.length === notes.length) return false
+export async function deleteNote(id) {
+  let removed = false
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  return true
+  await updateJson(
+    FILENAME,
+    (stored) => {
+      const notes = Array.isArray(stored) ? stored : []
+      const next = notes.filter((item) => item.id !== id)
+      removed = next.length !== notes.length
+      return next
+    },
+    [],
+  )
+
+  return removed
 }

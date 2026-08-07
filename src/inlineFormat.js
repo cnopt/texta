@@ -13,15 +13,26 @@ export const HEADING_FORMATS = ['h1', 'h2', 'h3']
 
 export const TODO_FORMAT = 'todo'
 export const TODO_COMPLETE_FORMAT = 'todoComplete'
+export const CALLOUT_FORMAT = 'callout'
+export const INFO_FORMAT = 'info'
 
 export const TODO_PREFIX = '\u2610 '
-export const TODO_COMPLETE_PREFIX = '\u2611 '
+export const TODO_COMPLETE_PREFIX = '\u2713 '
+export const TODO_CANCELLED_PREFIX = '\u2715 '
+export const CALLOUT_PREFIX = '|> '
+export const INFO_PREFIX = 'i> '
 
 const TODO_PREFIX_LENGTH = TODO_PREFIX.length
+const TODO_COMPLETE_PREFIX_LENGTH = TODO_COMPLETE_PREFIX.length
+const TODO_CANCELLED_PREFIX_LENGTH = TODO_CANCELLED_PREFIX.length
+const CALLOUT_PREFIX_LENGTH = CALLOUT_PREFIX.length
+const INFO_PREFIX_LENGTH = INFO_PREFIX.length
 
 function isTodoLine(lineText) {
   return (
-    lineText.startsWith(TODO_PREFIX) || lineText.startsWith(TODO_COMPLETE_PREFIX)
+    lineText.startsWith(TODO_PREFIX) ||
+    lineText.startsWith(TODO_COMPLETE_PREFIX) ||
+    lineText.startsWith(TODO_CANCELLED_PREFIX)
   )
 }
 
@@ -29,10 +40,45 @@ function isCompleteTodoLine(lineText) {
   return lineText.startsWith(TODO_COMPLETE_PREFIX)
 }
 
+function isCancelledTodoLine(lineText) {
+  return lineText.startsWith(TODO_CANCELLED_PREFIX)
+}
+
+function isCalloutLine(lineText) {
+  return lineText.startsWith(CALLOUT_PREFIX)
+}
+
+function isInfoLine(lineText) {
+  return lineText.startsWith(INFO_PREFIX)
+}
+
 function getTodoPrefix(lineText) {
   if (lineText.startsWith(TODO_COMPLETE_PREFIX)) return TODO_COMPLETE_PREFIX
+  if (lineText.startsWith(TODO_CANCELLED_PREFIX)) return TODO_CANCELLED_PREFIX
   if (lineText.startsWith(TODO_PREFIX)) return TODO_PREFIX
   return null
+}
+
+function getCalloutPrefix(lineText) {
+  return lineText.startsWith(CALLOUT_PREFIX) ? CALLOUT_PREFIX : null
+}
+
+function getInfoPrefix(lineText) {
+  return lineText.startsWith(INFO_PREFIX) ? INFO_PREFIX : null
+}
+
+function stripBlockPrefixes(lineText) {
+  let text = lineText
+
+  while (isTodoLine(text) || isCalloutLine(text) || isInfoLine(text)) {
+    if (isCompleteTodoLine(text)) text = text.slice(TODO_COMPLETE_PREFIX_LENGTH)
+    else if (isCancelledTodoLine(text)) text = text.slice(TODO_CANCELLED_PREFIX_LENGTH)
+    else if (text.startsWith(TODO_PREFIX)) text = text.slice(TODO_PREFIX_LENGTH)
+    else if (isCalloutLine(text)) text = text.slice(CALLOUT_PREFIX_LENGTH)
+    else text = text.slice(INFO_PREFIX_LENGTH)
+  }
+
+  return text
 }
 
 const MARKER_TOKENS = FORMAT_NAMES.map((format) => ({
@@ -125,6 +171,29 @@ export function parseInlineFormats(text) {
 
   flush(text.length)
   return segments
+}
+
+function stripLinePrefixForDisplay(lineText) {
+  if (isCalloutLine(lineText)) return lineText.slice(CALLOUT_PREFIX_LENGTH)
+  if (isInfoLine(lineText)) return lineText.slice(INFO_PREFIX_LENGTH)
+  return lineText
+}
+
+function stripInlineMarkers(lineText) {
+  return parseInlineFormats(lineText)
+    .filter((segment) => segment.type !== 'marker')
+    .map((segment) => segment.text)
+    .join('')
+}
+
+/** Plain text with formatting markers removed (for previews outside the editor). */
+export function getDisplayText(text, showFormatMarkers = false) {
+  if (showFormatMarkers) return text
+
+  return text
+    .split('\n')
+    .map((line) => stripInlineMarkers(stripLinePrefixForDisplay(line)))
+    .join('\n')
 }
 
 export function getFormatsAt(text, index) {
@@ -384,6 +453,18 @@ export function isTodoCompleteSelection(text, start, end) {
   )
 }
 
+export function isCalloutSelection(text, start, end) {
+  return getSelectedLines(text, start, end).lines.every((line) =>
+    isCalloutLine(line.text),
+  )
+}
+
+export function isInfoSelection(text, start, end) {
+  return getSelectedLines(text, start, end).lines.every((line) =>
+    isInfoLine(line.text),
+  )
+}
+
 /**
  * Add or strip the checkbox prefix on every line the selection touches.
  * Lines only lose the prefix when all of them already have it, so a mixed
@@ -400,19 +481,23 @@ export function toggleTodoItem(text, start, end) {
     if (adding) {
       if (isTodoLine(line.text)) return line.text
 
-      if (start >= line.from) startDelta += TODO_PREFIX_LENGTH
-      if (end >= line.from) endDelta += TODO_PREFIX_LENGTH
-      return TODO_PREFIX + line.text
+      const content = stripBlockPrefixes(line.text)
+      const lengthDelta = TODO_PREFIX_LENGTH - (line.text.length - content.length)
+
+      if (start >= line.from) startDelta += lengthDelta
+      if (end >= line.from) endDelta += lengthDelta
+      return TODO_PREFIX + content
     }
 
     const prefix = getTodoPrefix(line.text)
     if (!prefix) return line.text
 
-    const prefixEnd = line.from + TODO_PREFIX_LENGTH
+    const prefixLength = prefix.length
+    const prefixEnd = line.from + prefixLength
     // A caret sitting inside the prefix collapses to the start of the line.
-    startDelta -= start >= prefixEnd ? TODO_PREFIX_LENGTH : Math.max(0, start - line.from)
-    endDelta -= end >= prefixEnd ? TODO_PREFIX_LENGTH : Math.max(0, end - line.from)
-    return line.text.slice(TODO_PREFIX_LENGTH)
+    startDelta -= start >= prefixEnd ? prefixLength : Math.max(0, start - line.from)
+    endDelta -= end >= prefixEnd ? prefixLength : Math.max(0, end - line.from)
+    return line.text.slice(prefixLength)
   })
 
   return {
@@ -436,17 +521,124 @@ export function toggleTodoComplete(text, start, end) {
 
     if (completing) {
       if (isCompleteTodoLine(line.text)) return line.text
+      if (isCancelledTodoLine(line.text)) return line.text
       return TODO_COMPLETE_PREFIX + line.text.slice(TODO_PREFIX_LENGTH)
     }
 
     if (!isCompleteTodoLine(line.text)) return line.text
-    return TODO_PREFIX + line.text.slice(TODO_PREFIX_LENGTH)
+    return TODO_PREFIX + line.text.slice(TODO_COMPLETE_PREFIX_LENGTH)
   })
 
   return {
     text: text.slice(0, blockStart) + nextLines.join('\n') + text.slice(blockEnd),
     selectionStart: start,
     selectionEnd: end,
+  }
+}
+
+/**
+ * Toggle between incomplete and cancelled on todo lines the selection touches.
+ * Only incomplete and cancelled lines are affected.
+ */
+export function toggleTodoCancelled(text, start, end) {
+  const { blockStart, blockEnd, lines } = getSelectedLines(text, start, end)
+
+  const nextLines = lines.map((line) => {
+    if (line.text.startsWith(TODO_CANCELLED_PREFIX)) {
+      return TODO_PREFIX + line.text.slice(TODO_CANCELLED_PREFIX_LENGTH)
+    }
+
+    if (line.text.startsWith(TODO_PREFIX)) {
+      return TODO_CANCELLED_PREFIX + line.text.slice(TODO_PREFIX_LENGTH)
+    }
+
+    return line.text
+  })
+
+  return {
+    text: text.slice(0, blockStart) + nextLines.join('\n') + text.slice(blockEnd),
+    selectionStart: start,
+    selectionEnd: end,
+  }
+}
+
+/**
+ * Add or strip the callout prefix on every line the selection touches.
+ * Mixed selections are normalised into callouts first.
+ */
+export function toggleCallout(text, start, end) {
+  const { blockStart, blockEnd, lines } = getSelectedLines(text, start, end)
+  const adding = !lines.every((line) => isCalloutLine(line.text))
+  let startDelta = 0
+  let endDelta = 0
+
+  const nextLines = lines.map((line) => {
+    if (adding) {
+      if (isCalloutLine(line.text)) return line.text
+
+      const content = stripBlockPrefixes(line.text)
+      const lengthDelta = CALLOUT_PREFIX_LENGTH - (line.text.length - content.length)
+
+      if (start >= line.from) startDelta += lengthDelta
+      if (end >= line.from) endDelta += lengthDelta
+      return CALLOUT_PREFIX + content
+    }
+
+    const prefix = getCalloutPrefix(line.text)
+    if (!prefix) return line.text
+
+    const prefixEnd = line.from + CALLOUT_PREFIX_LENGTH
+    startDelta -=
+      start >= prefixEnd ? CALLOUT_PREFIX_LENGTH : Math.max(0, start - line.from)
+    endDelta -=
+      end >= prefixEnd ? CALLOUT_PREFIX_LENGTH : Math.max(0, end - line.from)
+    return line.text.slice(CALLOUT_PREFIX_LENGTH)
+  })
+
+  return {
+    text: text.slice(0, blockStart) + nextLines.join('\n') + text.slice(blockEnd),
+    selectionStart: start + startDelta,
+    selectionEnd: end + endDelta,
+  }
+}
+
+/**
+ * Add or strip the info prefix on every line the selection touches.
+ * Mixed selections are normalised into info lines first.
+ */
+export function toggleInfo(text, start, end) {
+  const { blockStart, blockEnd, lines } = getSelectedLines(text, start, end)
+  const adding = !lines.every((line) => isInfoLine(line.text))
+  let startDelta = 0
+  let endDelta = 0
+
+  const nextLines = lines.map((line) => {
+    if (adding) {
+      if (isInfoLine(line.text)) return line.text
+
+      const content = stripBlockPrefixes(line.text)
+      const lengthDelta = INFO_PREFIX_LENGTH - (line.text.length - content.length)
+
+      if (start >= line.from) startDelta += lengthDelta
+      if (end >= line.from) endDelta += lengthDelta
+      return INFO_PREFIX + content
+    }
+
+    const prefix = getInfoPrefix(line.text)
+    if (!prefix) return line.text
+
+    const prefixEnd = line.from + INFO_PREFIX_LENGTH
+    startDelta -=
+      start >= prefixEnd ? INFO_PREFIX_LENGTH : Math.max(0, start - line.from)
+    endDelta -=
+      end >= prefixEnd ? INFO_PREFIX_LENGTH : Math.max(0, end - line.from)
+    return line.text.slice(INFO_PREFIX_LENGTH)
+  })
+
+  return {
+    text: text.slice(0, blockStart) + nextLines.join('\n') + text.slice(blockEnd),
+    selectionStart: start + startDelta,
+    selectionEnd: end + endDelta,
   }
 }
 
@@ -463,7 +655,7 @@ export function deleteTodoPrefix(text, caret) {
   const prefix = getTodoPrefix(text.slice(lineStart))
 
   if (!prefix) return null
-  if (caret !== lineStart + TODO_PREFIX_LENGTH) return null
+  if (caret !== lineStart + prefix.length) return null
 
   const lineEnd = text.indexOf('\n', lineStart)
   const contentEnd = lineEnd === -1 ? text.length : lineEnd
@@ -471,10 +663,84 @@ export function deleteTodoPrefix(text, caret) {
   return {
     text:
       text.slice(0, lineStart) +
-      text.slice(lineStart + TODO_PREFIX_LENGTH, contentEnd) +
+      text.slice(lineStart + prefix.length, contentEnd) +
       text.slice(contentEnd),
     selectionStart: lineStart,
     selectionEnd: lineStart,
+  }
+}
+
+/**
+ * Backspacing from the start of callout text removes the whole prefix in one
+ * press, matching todo-prefix behaviour.
+ */
+export function deleteCalloutPrefix(text, caret) {
+  const lineStart = getLineStart(text, caret)
+  const prefix = getCalloutPrefix(text.slice(lineStart))
+
+  if (!prefix) return null
+  if (caret !== lineStart + CALLOUT_PREFIX_LENGTH) return null
+
+  const lineEnd = text.indexOf('\n', lineStart)
+  const contentEnd = lineEnd === -1 ? text.length : lineEnd
+
+  return {
+    text:
+      text.slice(0, lineStart) +
+      text.slice(lineStart + CALLOUT_PREFIX_LENGTH, contentEnd) +
+      text.slice(contentEnd),
+    selectionStart: lineStart,
+    selectionEnd: lineStart,
+  }
+}
+
+/**
+ * Backspacing from the start of info text removes the whole prefix in one press.
+ */
+export function deleteInfoPrefix(text, caret) {
+  const lineStart = getLineStart(text, caret)
+  const prefix = getInfoPrefix(text.slice(lineStart))
+
+  if (!prefix) return null
+  if (caret !== lineStart + INFO_PREFIX_LENGTH) return null
+
+  const lineEnd = text.indexOf('\n', lineStart)
+  const contentEnd = lineEnd === -1 ? text.length : lineEnd
+
+  return {
+    text:
+      text.slice(0, lineStart) +
+      text.slice(lineStart + INFO_PREFIX_LENGTH, contentEnd) +
+      text.slice(contentEnd),
+    selectionStart: lineStart,
+    selectionEnd: lineStart,
+  }
+}
+
+/**
+ * On a todo line, insert a newline and start the next line as an unchecked todo
+ * item. Returns null when the caret is not on todo item text.
+ */
+export function insertTodoNewline(text, caret) {
+  const lineStart = getLineStart(text, caret)
+  const lineEnd = text.indexOf('\n', lineStart)
+  const contentEnd = lineEnd === -1 ? text.length : lineEnd
+  const lineText = text.slice(lineStart, contentEnd)
+  const prefix = getTodoPrefix(lineText)
+
+  if (!prefix) return null
+  if (caret < lineStart + prefix.length) return null
+
+  const result = closeFormatsAndInsertNewline(text, caret)
+  const newLineStart = result.selectionStart
+
+  return {
+    text:
+      result.text.slice(0, newLineStart) +
+      TODO_PREFIX +
+      result.text.slice(newLineStart),
+    selectionStart: newLineStart + TODO_PREFIX_LENGTH,
+    selectionEnd: newLineStart + TODO_PREFIX_LENGTH,
   }
 }
 

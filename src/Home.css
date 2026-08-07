@@ -92,7 +92,7 @@
 .home-notes-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 16px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -100,6 +100,16 @@
 
 .home-notes-grid > li {
   min-width: 0;
+}
+
+.home-notes-grid--dynamic {
+  grid-auto-rows: 16px;
+  grid-auto-flow: dense;
+}
+
+.home-notes-grid--dynamic > li {
+  display: flex;
+  min-height: 0;
 }
 
 .home-notebook-list {

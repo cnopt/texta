@@ -1,9 +1,15 @@
 import { Capacitor } from '@capacitor/core'
-import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
+import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view'
 import {
+  CALLOUT_PREFIX,
   HEADING_FORMATS,
+  INFO_PREFIX,
+  TODO_CANCELLED_PREFIX,
   TODO_COMPLETE_PREFIX,
+  TODO_PREFIX,
   parseInlineFormats,
+  toggleTodoCancelled,
+  toggleTodoComplete,
 } from './inlineFormat.js'
 import { getTagStyleString } from './tagStyles.js'
 
@@ -66,10 +72,205 @@ const FORMAT_CLASS_NAMES = {
 
 const MARKER_DECORATION = Decoration.mark({ class: 'cm-format-marker' })
 const HIDDEN_MARKER_DECORATION = Decoration.replace({})
-const TODO_COMPLETE_DECORATION = Decoration.mark({ class: 'cm-todo-complete' })
+const TODO_LINE_DECORATION = Decoration.line({ class: 'cm-todo' })
+const TODO_COMPLETE_LINE_DECORATION = Decoration.line({ class: 'cm-todo-complete' })
+const TODO_CANCELLED_LINE_DECORATION = Decoration.line({ class: 'cm-todo-cancelled' })
+const CALLOUT_LINE_DECORATION = Decoration.line({ class: 'cm-callout' })
+const INFO_LINE_DECORATION = Decoration.line({ class: 'cm-info' })
+const TODO_PREFIX_LENGTH = TODO_PREFIX.length
+const TODO_COMPLETE_PREFIX_LENGTH = TODO_COMPLETE_PREFIX.length
+const TODO_CANCELLED_PREFIX_LENGTH = TODO_CANCELLED_PREFIX.length
+const TODO_CHECKBOX_LENGTH = 1
+const CALLOUT_PREFIX_LENGTH = CALLOUT_PREFIX.length
+const INFO_PREFIX_LENGTH = INFO_PREFIX.length
+const TODO_LONG_PRESS_MS = 500
+
+/** Survives widget re-mounts so pointerup after a long-press does not complete the item. */
+let suppressedTodoTapPointerId = null
+
+const INFO_ICON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b8cb0' stroke-width='2.5' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5'/%3E%3Ccircle cx='12' cy='8' r='1' fill='%236b8cb0' stroke='none'/%3E%3C/svg%3E")`
+
+function toMinimalChange(previous, next) {
+  const maxPrefix = Math.min(previous.length, next.length)
+  let from = 0
+
+  while (from < maxPrefix && previous[from] === next[from]) {
+    from += 1
+  }
+
+  let previousEnd = previous.length
+  let nextEnd = next.length
+
+  while (
+    previousEnd > from &&
+    nextEnd > from &&
+    previous[previousEnd - 1] === next[nextEnd - 1]
+  ) {
+    previousEnd -= 1
+    nextEnd -= 1
+  }
+
+  return { from, to: previousEnd, insert: next.slice(from, nextEnd) }
+}
+
+class TodoPrefixWidget extends WidgetType {
+  constructor(state, lineFrom) {
+    super()
+    this.state = state
+    this.lineFrom = lineFrom
+  }
+
+  eq(other) {
+    return (
+      other instanceof TodoPrefixWidget &&
+      other.state === this.state &&
+      other.lineFrom === this.lineFrom
+    )
+  }
+
+  toDOM(view) {
+    const widget = this
+    const span = document.createElement('span')
+    span.className = `cm-todo-prefix cm-todo-prefix-${this.state}`
+    span.textContent =
+      this.state === 'complete'
+        ? '\u2713'
+        : this.state === 'cancelled'
+          ? '\u2715'
+          : '\u2610'
+    span.setAttribute('aria-hidden', 'true')
+
+    let longPressTimer = null
+    let longPressTriggered = false
+
+    function clearLongPress() {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer)
+        longPressTimer = null
+      }
+    }
+
+    function dispatchToggle(fn) {
+      const { state } = view
+      const line = state.doc.lineAt(widget.lineFrom)
+      const doc = state.doc.toString()
+      const result = fn(doc, line.from, line.to)
+
+      view.dispatch({
+        changes: toMinimalChange(doc, result.text),
+      })
+    }
+
+    span.addEventListener('pointerdown', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      longPressTriggered = false
+
+      if (isAndroid && (widget.state === 'incomplete' || widget.state === 'cancelled')) {
+        const pointerId = event.pointerId
+        longPressTimer = setTimeout(() => {
+          longPressTriggered = true
+          suppressedTodoTapPointerId = pointerId
+          dispatchToggle(toggleTodoCancelled)
+        }, TODO_LONG_PRESS_MS)
+        return
+      }
+
+      if (!isAndroid && widget.state !== 'cancelled') {
+        dispatchToggle(toggleTodoComplete)
+      }
+    })
+
+    span.addEventListener('pointerup', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      clearLongPress()
+
+      if (!isAndroid) return
+
+      if (
+        longPressTriggered ||
+        event.pointerId === suppressedTodoTapPointerId
+      ) {
+        if (event.pointerId === suppressedTodoTapPointerId) {
+          suppressedTodoTapPointerId = null
+        }
+        return
+      }
+
+      if (widget.state === 'cancelled') return
+
+      dispatchToggle(toggleTodoComplete)
+    })
+
+    span.addEventListener('pointercancel', (event) => {
+      clearLongPress()
+      if (event.pointerId === suppressedTodoTapPointerId) {
+        suppressedTodoTapPointerId = null
+      }
+    })
+    span.addEventListener('pointerleave', clearLongPress)
+
+    return span
+  }
+
+  ignoreEvent() {
+    return true
+  }
+}
 
 function isCompleteTodoLine(lineText) {
   return lineText.startsWith(TODO_COMPLETE_PREFIX)
+}
+
+function isCancelledTodoLine(lineText) {
+  return lineText.startsWith(TODO_CANCELLED_PREFIX)
+}
+
+function isCalloutLine(lineText) {
+  return lineText.startsWith(CALLOUT_PREFIX)
+}
+
+function isInfoLine(lineText) {
+  return lineText.startsWith(INFO_PREFIX)
+}
+
+function hideLinePrefix(line, prefixLength, showMarkers, decorations, hidden) {
+  const prefixFrom = line.from
+  const prefixTo = line.from + prefixLength
+
+  if (showMarkers) {
+    decorations.push(MARKER_DECORATION.range(prefixFrom, prefixTo))
+    return
+  }
+
+  const range = HIDDEN_MARKER_DECORATION.range(prefixFrom, prefixTo)
+  decorations.push(range)
+  hidden.push(range)
+}
+
+function showTodoPrefix(line, state, showMarkers, decorations, hidden) {
+  const prefixLength =
+    state === 'complete'
+      ? TODO_COMPLETE_PREFIX_LENGTH
+      : state === 'cancelled'
+        ? TODO_CANCELLED_PREFIX_LENGTH
+        : TODO_PREFIX_LENGTH
+  const prefixFrom = line.from
+  const prefixTo = line.from + prefixLength
+
+  if (showMarkers) {
+    decorations.push(MARKER_DECORATION.range(prefixFrom, prefixTo))
+    return
+  }
+
+  // Replace only the checkbox glyph so the trailing space stays in the
+  // document. That keeps icon→text spacing natural and stable when toggling.
+  const range = Decoration.replace({
+    widget: new TodoPrefixWidget(state, line.from),
+  }).range(prefixFrom, prefixFrom + TODO_CHECKBOX_LENGTH)
+  decorations.push(range)
+  hidden.push(range)
 }
 
 function findLineTagMatch(line, tags) {
@@ -107,7 +308,24 @@ function collectLineDecorations(line, customTags, showMarkers, decorations, hidd
   if (!line.length) return
 
   if (isCompleteTodoLine(line.text)) {
-    decorations.push(TODO_COMPLETE_DECORATION.range(line.from, line.to))
+    decorations.push(TODO_COMPLETE_LINE_DECORATION.range(line.from))
+    showTodoPrefix(line, 'complete', showMarkers, decorations, hidden)
+  } else if (isCancelledTodoLine(line.text)) {
+    decorations.push(TODO_CANCELLED_LINE_DECORATION.range(line.from))
+    showTodoPrefix(line, 'cancelled', showMarkers, decorations, hidden)
+  } else if (line.text.startsWith(TODO_PREFIX)) {
+    decorations.push(TODO_LINE_DECORATION.range(line.from))
+    showTodoPrefix(line, 'incomplete', showMarkers, decorations, hidden)
+  }
+
+  if (isCalloutLine(line.text)) {
+    decorations.push(CALLOUT_LINE_DECORATION.range(line.from))
+    hideLinePrefix(line, CALLOUT_PREFIX_LENGTH, showMarkers, decorations, hidden)
+  }
+
+  if (isInfoLine(line.text)) {
+    decorations.push(INFO_LINE_DECORATION.range(line.from))
+    hideLinePrefix(line, INFO_PREFIX_LENGTH, showMarkers, decorations, hidden)
   }
 
   const tagMatch = findLineTagMatch(line.text, customTags)
@@ -205,6 +423,8 @@ export function createEditorTheme({
   fontSize,
   lineHeight,
   letterSpacing,
+  textAlign = 'left',
+  todoSpacing = false,
 }) {
   return EditorView.theme(
     {
@@ -230,6 +450,61 @@ export function createEditorTheme({
       },
       '.cm-line': {
         padding: '0',
+        textAlign,
+      },
+      '.cm-line.cm-todo, .cm-line.cm-todo-complete, .cm-line.cm-todo-cancelled': {
+        paddingLeft: todoSpacing ? '0.2em' : '0',
+      },
+      '.cm-line.cm-todo-complete': {
+        // color: '#5dce7a',
+        color: '#7bab44'
+      },
+      '.cm-line.cm-todo-cancelled': {
+        // color: '#e05555',
+        color: '#bd514a'
+      },
+      '.cm-todo-prefix': {
+        display: 'inline-block',
+        width: '1em',
+        textAlign: 'center',
+        cursor: 'pointer',
+        userSelect: 'none',
+        touchAction: 'manipulation',
+      },
+      '.cm-todo-prefix-complete': {
+        // color: '#5dce7a',
+        color: '#7bab44'
+      },
+      '.cm-todo-prefix-cancelled': {
+        // color: '#e05555',
+        color: '#bd514a'
+      },
+      '.cm-line.cm-callout': {
+        borderLeft: '4px solid rgb(210, 140, 79)',
+        margin: '6px 12px',
+        padding: '8px 12px 8px 28px',
+        color: '#e09040',
+      },
+      '.cm-line.cm-info': {
+        position: 'relative',
+        backgroundColor: '#1a2744',
+        color: '#6b8cb0',
+        margin: '6px 12px',
+        padding: '8px 12px 8px 40px',
+        borderRadius: '6px',
+      },
+      '.cm-line.cm-info::before': {
+        content: '""',
+        position: 'absolute',
+        left: '16px',
+        top: '50%',
+        width: '16px',
+        height: '16px',
+        transform: 'translateY(-50%)',
+        background: INFO_ICON,
+        backgroundSize: 'contain',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
       },
       '.cm-content ::selection': {
         backgroundColor: 'rgba(55, 122, 255, 0.35)',

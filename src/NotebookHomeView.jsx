@@ -23,7 +23,8 @@ export default function NotebookHomeView() {
   const { id } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const [notebook, setNotebook] = useState(() => getNotebookById(id))
+  const [notebook, setNotebook] = useState(null)
+  const [ready, setReady] = useState(false)
   const [pageTypeModalOpen, setPageTypeModalOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
@@ -36,7 +37,21 @@ export default function NotebookHomeView() {
   const [contentAnimating, setContentAnimating] = useState(false)
 
   useEffect(() => {
-    setNotebook(getNotebookById(id))
+    let cancelled = false
+
+    async function loadNotebook() {
+      setReady(false)
+      const next = await getNotebookById(id)
+      if (cancelled) return
+      setNotebook(next)
+      setReady(true)
+    }
+
+    loadNotebook()
+
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   useEffect(() => {
@@ -115,6 +130,10 @@ export default function NotebookHomeView() {
     return () => clearTimeout(clearStateTimer)
   }, [enterPhase, contentAnimating, notebook, location.pathname, location.state, navigate])
 
+  if (!ready) {
+    return <div className="notebook-home notebook-home--missing screen-page" />
+  }
+
   if (!notebook) {
     return (
       <div className="notebook-home notebook-home--missing screen-page">
@@ -133,10 +152,10 @@ export default function NotebookHomeView() {
     )
   }
 
-  function handleCreatePage({ type, title }) {
+  async function handleCreatePage({ type, title }) {
     if (type === 'page') {
-      createPage(notebook.id, { title })
-      setNotebook(getNotebookById(notebook.id))
+      await createPage(notebook.id, { title })
+      setNotebook(await getNotebookById(notebook.id))
     }
   }
 
@@ -145,8 +164,8 @@ export default function NotebookHomeView() {
     setRenameOpen(true)
   }
 
-  function handleRenameSaved() {
-    setNotebook(getNotebookById(notebook.id))
+  async function handleRenameSaved() {
+    setNotebook(await getNotebookById(notebook.id))
   }
 
   function handleDeleteClick() {
@@ -154,8 +173,8 @@ export default function NotebookHomeView() {
     setDeleteConfirmOpen(true)
   }
 
-  function handleConfirmDelete() {
-    deleteNotebook(notebook.id)
+  async function handleConfirmDelete() {
+    await deleteNotebook(notebook.id)
     navigate('/')
   }
 
@@ -266,7 +285,7 @@ export default function NotebookHomeView() {
       <NewPageTypeModal
         isOpen={pageTypeModalOpen}
         onClose={() => setPageTypeModalOpen(false)}
-        onCreate={handleCreatePage}
+        onCreate={(payload) => void handleCreatePage(payload)}
       />
 
       <CreateNotebook
@@ -307,7 +326,7 @@ export default function NotebookHomeView() {
               <button
                 type="button"
                 className="notebook-home-confirm-button notebook-home-confirm-button--danger"
-                onClick={handleConfirmDelete}
+                onClick={() => void handleConfirmDelete()}
               >
                 Delete
               </button>
