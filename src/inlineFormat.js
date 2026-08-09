@@ -15,70 +15,118 @@ export const TODO_FORMAT = 'todo'
 export const TODO_COMPLETE_FORMAT = 'todoComplete'
 export const CALLOUT_FORMAT = 'callout'
 export const INFO_FORMAT = 'info'
+export const TALLY_FORMAT = 'tally'
 
 export const TODO_PREFIX = '\u2610 '
 export const TODO_COMPLETE_PREFIX = '\u2713 '
 export const TODO_CANCELLED_PREFIX = '\u2715 '
 export const CALLOUT_PREFIX = '|> '
 export const INFO_PREFIX = 'i> '
+export const TALLY_PREFIX = 't> '
 
 const TODO_PREFIX_LENGTH = TODO_PREFIX.length
 const TODO_COMPLETE_PREFIX_LENGTH = TODO_COMPLETE_PREFIX.length
 const TODO_CANCELLED_PREFIX_LENGTH = TODO_CANCELLED_PREFIX.length
 const CALLOUT_PREFIX_LENGTH = CALLOUT_PREFIX.length
 const INFO_PREFIX_LENGTH = INFO_PREFIX.length
+const TALLY_PREFIX_LENGTH = TALLY_PREFIX.length
+
+/** Leading tab indent before a block prefix (todo / callout / info / tally). */
+function getLineIndentLength(lineText) {
+  let i = 0
+  while (i < lineText.length && lineText[i] === '\t') i += 1
+  return i
+}
+
+function lineBody(lineText) {
+  return lineText.slice(getLineIndentLength(lineText))
+}
 
 function isTodoLine(lineText) {
+  const body = lineBody(lineText)
   return (
-    lineText.startsWith(TODO_PREFIX) ||
-    lineText.startsWith(TODO_COMPLETE_PREFIX) ||
-    lineText.startsWith(TODO_CANCELLED_PREFIX)
+    body.startsWith(TODO_PREFIX) ||
+    body.startsWith(TODO_COMPLETE_PREFIX) ||
+    body.startsWith(TODO_CANCELLED_PREFIX)
   )
 }
 
 function isCompleteTodoLine(lineText) {
-  return lineText.startsWith(TODO_COMPLETE_PREFIX)
+  return lineBody(lineText).startsWith(TODO_COMPLETE_PREFIX)
 }
 
 function isCancelledTodoLine(lineText) {
-  return lineText.startsWith(TODO_CANCELLED_PREFIX)
+  return lineBody(lineText).startsWith(TODO_CANCELLED_PREFIX)
 }
 
 function isCalloutLine(lineText) {
-  return lineText.startsWith(CALLOUT_PREFIX)
+  return lineBody(lineText).startsWith(CALLOUT_PREFIX)
 }
 
 function isInfoLine(lineText) {
-  return lineText.startsWith(INFO_PREFIX)
+  return lineBody(lineText).startsWith(INFO_PREFIX)
+}
+
+function isTallyLine(lineText) {
+  return lineBody(lineText).startsWith(TALLY_PREFIX)
+}
+
+export function parseTallyValue(lineText) {
+  if (!isTallyLine(lineText)) return 0
+  const parsed = Number.parseInt(lineBody(lineText).slice(TALLY_PREFIX_LENGTH).trim(), 10)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function getTodoPrefix(lineText) {
-  if (lineText.startsWith(TODO_COMPLETE_PREFIX)) return TODO_COMPLETE_PREFIX
-  if (lineText.startsWith(TODO_CANCELLED_PREFIX)) return TODO_CANCELLED_PREFIX
-  if (lineText.startsWith(TODO_PREFIX)) return TODO_PREFIX
+  const body = lineBody(lineText)
+  if (body.startsWith(TODO_COMPLETE_PREFIX)) return TODO_COMPLETE_PREFIX
+  if (body.startsWith(TODO_CANCELLED_PREFIX)) return TODO_CANCELLED_PREFIX
+  if (body.startsWith(TODO_PREFIX)) return TODO_PREFIX
   return null
 }
 
 function getCalloutPrefix(lineText) {
-  return lineText.startsWith(CALLOUT_PREFIX) ? CALLOUT_PREFIX : null
+  return lineBody(lineText).startsWith(CALLOUT_PREFIX) ? CALLOUT_PREFIX : null
 }
 
 function getInfoPrefix(lineText) {
-  return lineText.startsWith(INFO_PREFIX) ? INFO_PREFIX : null
+  return lineBody(lineText).startsWith(INFO_PREFIX) ? INFO_PREFIX : null
+}
+
+function getTallyPrefix(lineText) {
+  return lineBody(lineText).startsWith(TALLY_PREFIX) ? TALLY_PREFIX : null
 }
 
 function stripBlockPrefixes(lineText) {
   let text = lineText
 
-  while (isTodoLine(text) || isCalloutLine(text) || isInfoLine(text)) {
-    if (isCompleteTodoLine(text)) text = text.slice(TODO_COMPLETE_PREFIX_LENGTH)
-    else if (isCancelledTodoLine(text)) text = text.slice(TODO_CANCELLED_PREFIX_LENGTH)
-    else if (text.startsWith(TODO_PREFIX)) text = text.slice(TODO_PREFIX_LENGTH)
-    else if (isCalloutLine(text)) text = text.slice(CALLOUT_PREFIX_LENGTH)
-    else text = text.slice(INFO_PREFIX_LENGTH)
+  while (
+    isTodoLine(text) ||
+    isCalloutLine(text) ||
+    isInfoLine(text) ||
+    isTallyLine(text)
+  ) {
+    const indent = getLineIndentLength(text)
+    const body = text.slice(indent)
+
+    if (body.startsWith(TODO_COMPLETE_PREFIX)) {
+      text = text.slice(0, indent) + body.slice(TODO_COMPLETE_PREFIX_LENGTH)
+    } else if (body.startsWith(TODO_CANCELLED_PREFIX)) {
+      text = text.slice(0, indent) + body.slice(TODO_CANCELLED_PREFIX_LENGTH)
+    } else if (body.startsWith(TODO_PREFIX)) {
+      text = text.slice(0, indent) + body.slice(TODO_PREFIX_LENGTH)
+    } else if (body.startsWith(CALLOUT_PREFIX)) {
+      text = text.slice(0, indent) + body.slice(CALLOUT_PREFIX_LENGTH)
+    } else if (body.startsWith(INFO_PREFIX)) {
+      text = text.slice(0, indent) + body.slice(INFO_PREFIX_LENGTH)
+    } else if (body.startsWith(TALLY_PREFIX)) {
+      text = text.slice(0, indent) + body.slice(TALLY_PREFIX_LENGTH)
+    } else {
+      break
+    }
   }
 
-  return text
+  return text.slice(getLineIndentLength(text))
 }
 
 const MARKER_TOKENS = FORMAT_NAMES.map((format) => ({
@@ -174,8 +222,18 @@ export function parseInlineFormats(text) {
 }
 
 function stripLinePrefixForDisplay(lineText) {
-  if (isCalloutLine(lineText)) return lineText.slice(CALLOUT_PREFIX_LENGTH)
-  if (isInfoLine(lineText)) return lineText.slice(INFO_PREFIX_LENGTH)
+  const indent = getLineIndentLength(lineText)
+  const body = lineText.slice(indent)
+
+  if (body.startsWith(CALLOUT_PREFIX)) {
+    return lineText.slice(0, indent) + body.slice(CALLOUT_PREFIX_LENGTH)
+  }
+  if (body.startsWith(INFO_PREFIX)) {
+    return lineText.slice(0, indent) + body.slice(INFO_PREFIX_LENGTH)
+  }
+  if (body.startsWith(TALLY_PREFIX)) {
+    return lineText.slice(0, indent) + body.slice(TALLY_PREFIX_LENGTH)
+  }
   return lineText
 }
 
@@ -465,6 +523,12 @@ export function isInfoSelection(text, start, end) {
   )
 }
 
+export function isTallySelection(text, start, end) {
+  return getSelectedLines(text, start, end).lines.every((line) =>
+    isTallyLine(line.text),
+  )
+}
+
 /**
  * Add or strip the checkbox prefix on every line the selection touches.
  * Lines only lose the prefix when all of them already have it, so a mixed
@@ -478,26 +542,37 @@ export function toggleTodoItem(text, start, end) {
   let endDelta = 0
 
   const nextLines = lines.map((line) => {
+    const indentLength = getLineIndentLength(line.text)
+    const indent = line.text.slice(0, indentLength)
+
     if (adding) {
       if (isTodoLine(line.text)) return line.text
 
       const content = stripBlockPrefixes(line.text)
-      const lengthDelta = TODO_PREFIX_LENGTH - (line.text.length - content.length)
+      const next = indent + TODO_PREFIX + content
+      const lengthDelta = next.length - line.text.length
 
       if (start >= line.from) startDelta += lengthDelta
       if (end >= line.from) endDelta += lengthDelta
-      return TODO_PREFIX + content
+      return next
     }
 
     const prefix = getTodoPrefix(line.text)
     if (!prefix) return line.text
 
     const prefixLength = prefix.length
-    const prefixEnd = line.from + prefixLength
-    // A caret sitting inside the prefix collapses to the start of the line.
-    startDelta -= start >= prefixEnd ? prefixLength : Math.max(0, start - line.from)
-    endDelta -= end >= prefixEnd ? prefixLength : Math.max(0, end - line.from)
-    return line.text.slice(prefixLength)
+    const prefixStart = line.from + indentLength
+    const prefixEnd = prefixStart + prefixLength
+    // A caret sitting inside the prefix collapses to the start of the prefix.
+    startDelta -=
+      start >= prefixEnd
+        ? prefixLength
+        : start > prefixStart
+          ? start - prefixStart
+          : 0
+    endDelta -=
+      end >= prefixEnd ? prefixLength : end > prefixStart ? end - prefixStart : 0
+    return indent + line.text.slice(indentLength + prefixLength)
   })
 
   return {
@@ -519,14 +594,18 @@ export function toggleTodoComplete(text, start, end) {
   const nextLines = lines.map((line) => {
     if (!isTodoLine(line.text)) return line.text
 
+    const indentLength = getLineIndentLength(line.text)
+    const indent = line.text.slice(0, indentLength)
+    const body = line.text.slice(indentLength)
+
     if (completing) {
       if (isCompleteTodoLine(line.text)) return line.text
       if (isCancelledTodoLine(line.text)) return line.text
-      return TODO_COMPLETE_PREFIX + line.text.slice(TODO_PREFIX_LENGTH)
+      return indent + TODO_COMPLETE_PREFIX + body.slice(TODO_PREFIX_LENGTH)
     }
 
     if (!isCompleteTodoLine(line.text)) return line.text
-    return TODO_PREFIX + line.text.slice(TODO_COMPLETE_PREFIX_LENGTH)
+    return indent + TODO_PREFIX + body.slice(TODO_COMPLETE_PREFIX_LENGTH)
   })
 
   return {
@@ -544,12 +623,16 @@ export function toggleTodoCancelled(text, start, end) {
   const { blockStart, blockEnd, lines } = getSelectedLines(text, start, end)
 
   const nextLines = lines.map((line) => {
-    if (line.text.startsWith(TODO_CANCELLED_PREFIX)) {
-      return TODO_PREFIX + line.text.slice(TODO_CANCELLED_PREFIX_LENGTH)
+    const indentLength = getLineIndentLength(line.text)
+    const indent = line.text.slice(0, indentLength)
+    const body = line.text.slice(indentLength)
+
+    if (body.startsWith(TODO_CANCELLED_PREFIX)) {
+      return indent + TODO_PREFIX + body.slice(TODO_CANCELLED_PREFIX_LENGTH)
     }
 
-    if (line.text.startsWith(TODO_PREFIX)) {
-      return TODO_CANCELLED_PREFIX + line.text.slice(TODO_PREFIX_LENGTH)
+    if (body.startsWith(TODO_PREFIX)) {
+      return indent + TODO_CANCELLED_PREFIX + body.slice(TODO_PREFIX_LENGTH)
     }
 
     return line.text
@@ -573,26 +656,39 @@ export function toggleCallout(text, start, end) {
   let endDelta = 0
 
   const nextLines = lines.map((line) => {
+    const indentLength = getLineIndentLength(line.text)
+    const indent = line.text.slice(0, indentLength)
+
     if (adding) {
       if (isCalloutLine(line.text)) return line.text
 
       const content = stripBlockPrefixes(line.text)
-      const lengthDelta = CALLOUT_PREFIX_LENGTH - (line.text.length - content.length)
+      const next = indent + CALLOUT_PREFIX + content
+      const lengthDelta = next.length - line.text.length
 
       if (start >= line.from) startDelta += lengthDelta
       if (end >= line.from) endDelta += lengthDelta
-      return CALLOUT_PREFIX + content
+      return next
     }
 
     const prefix = getCalloutPrefix(line.text)
     if (!prefix) return line.text
 
-    const prefixEnd = line.from + CALLOUT_PREFIX_LENGTH
+    const prefixStart = line.from + indentLength
+    const prefixEnd = prefixStart + CALLOUT_PREFIX_LENGTH
     startDelta -=
-      start >= prefixEnd ? CALLOUT_PREFIX_LENGTH : Math.max(0, start - line.from)
+      start >= prefixEnd
+        ? CALLOUT_PREFIX_LENGTH
+        : start > prefixStart
+          ? start - prefixStart
+          : 0
     endDelta -=
-      end >= prefixEnd ? CALLOUT_PREFIX_LENGTH : Math.max(0, end - line.from)
-    return line.text.slice(CALLOUT_PREFIX_LENGTH)
+      end >= prefixEnd
+        ? CALLOUT_PREFIX_LENGTH
+        : end > prefixStart
+          ? end - prefixStart
+          : 0
+    return indent + line.text.slice(indentLength + CALLOUT_PREFIX_LENGTH)
   })
 
   return {
@@ -613,32 +709,80 @@ export function toggleInfo(text, start, end) {
   let endDelta = 0
 
   const nextLines = lines.map((line) => {
+    const indentLength = getLineIndentLength(line.text)
+    const indent = line.text.slice(0, indentLength)
+
     if (adding) {
       if (isInfoLine(line.text)) return line.text
 
       const content = stripBlockPrefixes(line.text)
-      const lengthDelta = INFO_PREFIX_LENGTH - (line.text.length - content.length)
+      const next = indent + INFO_PREFIX + content
+      const lengthDelta = next.length - line.text.length
 
       if (start >= line.from) startDelta += lengthDelta
       if (end >= line.from) endDelta += lengthDelta
-      return INFO_PREFIX + content
+      return next
     }
 
     const prefix = getInfoPrefix(line.text)
     if (!prefix) return line.text
 
-    const prefixEnd = line.from + INFO_PREFIX_LENGTH
+    const prefixStart = line.from + indentLength
+    const prefixEnd = prefixStart + INFO_PREFIX_LENGTH
     startDelta -=
-      start >= prefixEnd ? INFO_PREFIX_LENGTH : Math.max(0, start - line.from)
+      start >= prefixEnd
+        ? INFO_PREFIX_LENGTH
+        : start > prefixStart
+          ? start - prefixStart
+          : 0
     endDelta -=
-      end >= prefixEnd ? INFO_PREFIX_LENGTH : Math.max(0, end - line.from)
-    return line.text.slice(INFO_PREFIX_LENGTH)
+      end >= prefixEnd
+        ? INFO_PREFIX_LENGTH
+        : end > prefixStart
+          ? end - prefixStart
+          : 0
+    return indent + line.text.slice(indentLength + INFO_PREFIX_LENGTH)
   })
 
   return {
     text: text.slice(0, blockStart) + nextLines.join('\n') + text.slice(blockEnd),
     selectionStart: start + startDelta,
     selectionEnd: end + endDelta,
+  }
+}
+
+/**
+ * Insert a tally counter on the line after the caret's line, then an empty
+ * line with the caret on it so the user can keep typing after the block.
+ */
+export function insertTally(text, _start, end) {
+  const lineEnd = text.indexOf('\n', end)
+  const contentEnd = lineEnd === -1 ? text.length : lineEnd
+  const insert = `\n${TALLY_PREFIX}0\n`
+  const selection = contentEnd + insert.length
+
+  return {
+    text: text.slice(0, contentEnd) + insert + text.slice(contentEnd),
+    selectionStart: selection,
+    selectionEnd: selection,
+  }
+}
+
+/** Rewrite a tally line's numeric value. Returns null when the line is not a tally. */
+export function setTallyValue(text, lineFrom, value) {
+  const lineStart = getLineStart(text, lineFrom)
+  const lineEnd = text.indexOf('\n', lineStart)
+  const contentEnd = lineEnd === -1 ? text.length : lineEnd
+  const lineText = text.slice(lineStart, contentEnd)
+
+  if (!isTallyLine(lineText)) return null
+
+  const indent = lineText.slice(0, getLineIndentLength(lineText))
+  const nextLine = `${indent}${TALLY_PREFIX}${value}`
+  return {
+    text: text.slice(0, lineStart) + nextLine + text.slice(contentEnd),
+    selectionStart: lineStart + nextLine.length,
+    selectionEnd: lineStart + nextLine.length,
   }
 }
 
@@ -652,21 +796,24 @@ export function toggleInfo(text, start, end) {
  */
 export function deleteTodoPrefix(text, caret) {
   const lineStart = getLineStart(text, caret)
-  const prefix = getTodoPrefix(text.slice(lineStart))
+  const lineText = text.slice(lineStart)
+  const indentLength = getLineIndentLength(lineText)
+  const prefix = getTodoPrefix(lineText)
 
   if (!prefix) return null
-  if (caret !== lineStart + prefix.length) return null
+  if (caret !== lineStart + indentLength + prefix.length) return null
 
   const lineEnd = text.indexOf('\n', lineStart)
   const contentEnd = lineEnd === -1 ? text.length : lineEnd
+  const prefixStart = lineStart + indentLength
 
   return {
     text:
-      text.slice(0, lineStart) +
-      text.slice(lineStart + prefix.length, contentEnd) +
+      text.slice(0, prefixStart) +
+      text.slice(prefixStart + prefix.length, contentEnd) +
       text.slice(contentEnd),
-    selectionStart: lineStart,
-    selectionEnd: lineStart,
+    selectionStart: prefixStart,
+    selectionEnd: prefixStart,
   }
 }
 
@@ -676,21 +823,24 @@ export function deleteTodoPrefix(text, caret) {
  */
 export function deleteCalloutPrefix(text, caret) {
   const lineStart = getLineStart(text, caret)
-  const prefix = getCalloutPrefix(text.slice(lineStart))
+  const lineText = text.slice(lineStart)
+  const indentLength = getLineIndentLength(lineText)
+  const prefix = getCalloutPrefix(lineText)
 
   if (!prefix) return null
-  if (caret !== lineStart + CALLOUT_PREFIX_LENGTH) return null
+  if (caret !== lineStart + indentLength + CALLOUT_PREFIX_LENGTH) return null
 
   const lineEnd = text.indexOf('\n', lineStart)
   const contentEnd = lineEnd === -1 ? text.length : lineEnd
+  const prefixStart = lineStart + indentLength
 
   return {
     text:
-      text.slice(0, lineStart) +
-      text.slice(lineStart + CALLOUT_PREFIX_LENGTH, contentEnd) +
+      text.slice(0, prefixStart) +
+      text.slice(prefixStart + CALLOUT_PREFIX_LENGTH, contentEnd) +
       text.slice(contentEnd),
-    selectionStart: lineStart,
-    selectionEnd: lineStart,
+    selectionStart: prefixStart,
+    selectionEnd: prefixStart,
   }
 }
 
@@ -699,21 +849,50 @@ export function deleteCalloutPrefix(text, caret) {
  */
 export function deleteInfoPrefix(text, caret) {
   const lineStart = getLineStart(text, caret)
-  const prefix = getInfoPrefix(text.slice(lineStart))
+  const lineText = text.slice(lineStart)
+  const indentLength = getLineIndentLength(lineText)
+  const prefix = getInfoPrefix(lineText)
 
   if (!prefix) return null
-  if (caret !== lineStart + INFO_PREFIX_LENGTH) return null
+  if (caret !== lineStart + indentLength + INFO_PREFIX_LENGTH) return null
 
   const lineEnd = text.indexOf('\n', lineStart)
   const contentEnd = lineEnd === -1 ? text.length : lineEnd
+  const prefixStart = lineStart + indentLength
 
   return {
     text:
-      text.slice(0, lineStart) +
-      text.slice(lineStart + INFO_PREFIX_LENGTH, contentEnd) +
+      text.slice(0, prefixStart) +
+      text.slice(prefixStart + INFO_PREFIX_LENGTH, contentEnd) +
       text.slice(contentEnd),
-    selectionStart: lineStart,
-    selectionEnd: lineStart,
+    selectionStart: prefixStart,
+    selectionEnd: prefixStart,
+  }
+}
+
+/**
+ * Backspacing from the start of tally text removes the whole prefix in one press.
+ */
+export function deleteTallyPrefix(text, caret) {
+  const lineStart = getLineStart(text, caret)
+  const lineText = text.slice(lineStart)
+  const indentLength = getLineIndentLength(lineText)
+  const prefix = getTallyPrefix(lineText)
+
+  if (!prefix) return null
+  if (caret !== lineStart + indentLength + TALLY_PREFIX_LENGTH) return null
+
+  const lineEnd = text.indexOf('\n', lineStart)
+  const contentEnd = lineEnd === -1 ? text.length : lineEnd
+  const prefixStart = lineStart + indentLength
+
+  return {
+    text:
+      text.slice(0, prefixStart) +
+      text.slice(prefixStart + TALLY_PREFIX_LENGTH, contentEnd) +
+      text.slice(contentEnd),
+    selectionStart: prefixStart,
+    selectionEnd: prefixStart,
   }
 }
 
@@ -726,21 +905,24 @@ export function insertTodoNewline(text, caret) {
   const lineEnd = text.indexOf('\n', lineStart)
   const contentEnd = lineEnd === -1 ? text.length : lineEnd
   const lineText = text.slice(lineStart, contentEnd)
+  const indentLength = getLineIndentLength(lineText)
+  const indent = lineText.slice(0, indentLength)
   const prefix = getTodoPrefix(lineText)
 
   if (!prefix) return null
-  if (caret < lineStart + prefix.length) return null
+  if (caret < lineStart + indentLength + prefix.length) return null
 
   const result = closeFormatsAndInsertNewline(text, caret)
   const newLineStart = result.selectionStart
+  const inserted = indent + TODO_PREFIX
 
   return {
     text:
       result.text.slice(0, newLineStart) +
-      TODO_PREFIX +
+      inserted +
       result.text.slice(newLineStart),
-    selectionStart: newLineStart + TODO_PREFIX_LENGTH,
-    selectionEnd: newLineStart + TODO_PREFIX_LENGTH,
+    selectionStart: newLineStart + inserted.length,
+    selectionEnd: newLineStart + inserted.length,
   }
 }
 
@@ -780,5 +962,46 @@ export function closeFormatsAndInsertNewline(text, caret) {
     text: nextText,
     selectionStart: nextCaret,
     selectionEnd: nextCaret,
+  }
+}
+
+/**
+ * Insert a tab at the start of every line the selection touches.
+ */
+export function indentSelectedLines(text, start, end) {
+  const { blockStart, blockEnd, lines } = getSelectedLines(text, start, end)
+  let startDelta = 0
+  let endDelta = 0
+
+  const nextLines = lines.map((line) => {
+    if (start >= line.from) startDelta += 1
+    if (end >= line.from) endDelta += 1
+    return `\t${line.text}`
+  })
+
+  return {
+    text: text.slice(0, blockStart) + nextLines.join('\n') + text.slice(blockEnd),
+    selectionStart: start + startDelta,
+    selectionEnd: end + endDelta,
+  }
+}
+
+/**
+ * True when the text on the caret's line, up to the caret, ends with ':'.
+ */
+export function lineEndsWithColon(text, caret) {
+  const lineStart = getLineStart(text, caret)
+  const beforeCaret = text.slice(lineStart, caret).replace(/[ \t]+$/, '')
+  return beforeCaret.endsWith(':')
+}
+
+/**
+ * Insert a tab at `position` and shift the selection if it sits at or after that point.
+ */
+export function insertTabAt(text, position, selectionStart, selectionEnd) {
+  return {
+    text: `${text.slice(0, position)}\t${text.slice(position)}`,
+    selectionStart: selectionStart >= position ? selectionStart + 1 : selectionStart,
+    selectionEnd: selectionEnd >= position ? selectionEnd + 1 : selectionEnd,
   }
 }

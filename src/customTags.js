@@ -12,6 +12,7 @@ function normalizeTag(tag) {
     bold: Boolean(tag.bold),
     italic: Boolean(tag.italic),
     underline: Boolean(tag.underline),
+    caseSensitive: Boolean(tag.caseSensitive),
     createdAt: tag.createdAt,
   }
 }
@@ -26,7 +27,14 @@ export async function getCustomTags() {
   }
 }
 
-export async function addCustomTag({ trigger, textColor, bold, italic, underline }) {
+export async function addCustomTag({
+  trigger,
+  textColor,
+  bold,
+  italic,
+  underline,
+  caseSensitive = false,
+}) {
   const tags = await getCustomTags()
   const trimmedTrigger = trigger.trim()
 
@@ -40,6 +48,7 @@ export async function addCustomTag({ trigger, textColor, bold, italic, underline
     bold,
     italic,
     underline,
+    caseSensitive,
     createdAt: new Date().toISOString(),
   })
 

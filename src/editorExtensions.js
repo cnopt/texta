@@ -1,13 +1,18 @@
 import { Capacitor } from '@capacitor/core'
+import { Haptics, ImpactStyle } from '@capacitor/haptics'
+import { EditorSelection, EditorState } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view'
 import {
   CALLOUT_PREFIX,
   HEADING_FORMATS,
   INFO_PREFIX,
+  TALLY_PREFIX,
   TODO_CANCELLED_PREFIX,
   TODO_COMPLETE_PREFIX,
   TODO_PREFIX,
   parseInlineFormats,
+  parseTallyValue,
+  setTallyValue,
   toggleTodoCancelled,
   toggleTodoComplete,
 } from './inlineFormat.js'
@@ -16,14 +21,39 @@ import { getTagStyleString } from './tagStyles.js'
 const isAndroid =
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
 
+/** Matches the fixed mobile formatting bar footprint in FloatingBar.css / Editor.css. */
+export const MOBILE_FLOATING_BAR_INSET = 40
+
+function lightHaptic() {
+  if (!Capacitor.isNativePlatform()) return
+  void Haptics.impact({ style: ImpactStyle.Light }).catch(() => {})
+}
+
 let pendingAndroidScrollFrame = 0
+
+// Bottom overlay (floating bar) that covers the editor scroller. scrollIntoView
+// and Android caret checks must treat this as outside the visible area.
+let editorBottomScrollInset = 0
+
+export function setEditorBottomScrollInset(px) {
+  editorBottomScrollInset = Math.max(0, px)
+}
+
+export function editorScrollMargins() {
+  return EditorView.scrollMargins.of(() => ({
+    bottom: editorBottomScrollInset,
+  }))
+}
 
 function isCursorVisible(view, head) {
   const coords = view.coordsAtPos(head)
   if (!coords) return true
 
   const bounds = view.scrollDOM.getBoundingClientRect()
-  return coords.top >= bounds.top - 4 && coords.bottom <= bounds.bottom + 4
+  return (
+    coords.top >= bounds.top - 4 &&
+    coords.bottom <= bounds.bottom - editorBottomScrollInset + 4
+  )
 }
 
 function scheduleAndroidCursorScroll(view) {
@@ -52,13 +82,57 @@ export function androidEditorSupport() {
   return [
     EditorView.updateListener.of((update) => {
       if (!update.view.hasFocus) return
-      if (!update.selectionSet && !(update.focusChanged && update.view.hasFocus)) {
+      if (
+        !update.docChanged &&
+        !update.selectionSet &&
+        !(update.focusChanged && update.view.hasFocus)
+      ) {
         return
       }
 
       scheduleAndroidCursorScroll(update.view)
     }),
   ]
+}
+
+/** Append a newline when document text ends on a tally line. */
+export function withTallyTrailingLine(text) {
+  if (!text) return text
+
+  const lastNewline = text.lastIndexOf('\n')
+  const lastLine = lastNewline === -1 ? text : text.slice(lastNewline + 1)
+  if (!lastLine.startsWith(TALLY_PREFIX)) return text
+  return `${text}\n`
+}
+
+/**
+ * Tally lines are fully replaced by a widget, so the doc must not end on one
+ * or there is nowhere to put the caret / type. Re-insert a trailing empty
+ * line whenever an edit would leave a tally as the last line.
+ */
+export function ensureTallyTrailingLine() {
+  return EditorState.transactionFilter.of((tr) => {
+    if (!tr.docChanged) return tr
+
+    const doc = tr.newDoc
+    const lastLine = doc.line(doc.lines)
+    if (!lastLine.text.startsWith(TALLY_PREFIX)) return tr
+
+    const insertAt = doc.length
+    const main = tr.newSelection.main
+    const caretOnTally = main.from >= lastLine.from && main.to <= lastLine.to
+
+    return [
+      tr,
+      {
+        changes: { from: insertAt, insert: '\n' },
+        selection: caretOnTally
+          ? EditorSelection.cursor(insertAt + 1)
+          : undefined,
+        sequential: true,
+      },
+    ]
+  })
 }
 
 const FORMAT_CLASS_NAMES = {
@@ -77,12 +151,14 @@ const TODO_COMPLETE_LINE_DECORATION = Decoration.line({ class: 'cm-todo-complete
 const TODO_CANCELLED_LINE_DECORATION = Decoration.line({ class: 'cm-todo-cancelled' })
 const CALLOUT_LINE_DECORATION = Decoration.line({ class: 'cm-callout' })
 const INFO_LINE_DECORATION = Decoration.line({ class: 'cm-info' })
+const TALLY_LINE_DECORATION = Decoration.line({ class: 'cm-tally' })
 const TODO_PREFIX_LENGTH = TODO_PREFIX.length
 const TODO_COMPLETE_PREFIX_LENGTH = TODO_COMPLETE_PREFIX.length
 const TODO_CANCELLED_PREFIX_LENGTH = TODO_CANCELLED_PREFIX.length
 const TODO_CHECKBOX_LENGTH = 1
 const CALLOUT_PREFIX_LENGTH = CALLOUT_PREFIX.length
 const INFO_PREFIX_LENGTH = INFO_PREFIX.length
+const TALLY_PREFIX_LENGTH = TALLY_PREFIX.length
 const TODO_LONG_PRESS_MS = 500
 
 /** Survives widget re-mounts so pointerup after a long-press does not complete the item. */
@@ -219,25 +295,144 @@ class TodoPrefixWidget extends WidgetType {
   }
 }
 
+function getLineIndentLength(lineText) {
+  let i = 0
+  while (i < lineText.length && lineText[i] === '\t') i += 1
+  return i
+}
+
+function lineBody(lineText) {
+  return lineText.slice(getLineIndentLength(lineText))
+}
+
 function isCompleteTodoLine(lineText) {
-  return lineText.startsWith(TODO_COMPLETE_PREFIX)
+  return lineBody(lineText).startsWith(TODO_COMPLETE_PREFIX)
 }
 
 function isCancelledTodoLine(lineText) {
-  return lineText.startsWith(TODO_CANCELLED_PREFIX)
+  return lineBody(lineText).startsWith(TODO_CANCELLED_PREFIX)
+}
+
+function isTodoLine(lineText) {
+  const body = lineBody(lineText)
+  return (
+    body.startsWith(TODO_PREFIX) ||
+    body.startsWith(TODO_COMPLETE_PREFIX) ||
+    body.startsWith(TODO_CANCELLED_PREFIX)
+  )
 }
 
 function isCalloutLine(lineText) {
-  return lineText.startsWith(CALLOUT_PREFIX)
+  return lineBody(lineText).startsWith(CALLOUT_PREFIX)
 }
 
 function isInfoLine(lineText) {
-  return lineText.startsWith(INFO_PREFIX)
+  return lineBody(lineText).startsWith(INFO_PREFIX)
+}
+
+function isTallyLine(lineText) {
+  return lineBody(lineText).startsWith(TALLY_PREFIX)
+}
+
+class TallyWidget extends WidgetType {
+  constructor(value, lineFrom) {
+    super()
+    this.value = value
+    this.lineFrom = lineFrom
+  }
+
+  eq(other) {
+    return (
+      other instanceof TallyWidget &&
+      other.value === this.value &&
+      other.lineFrom === this.lineFrom
+    )
+  }
+
+  toDOM(view) {
+    const widget = this
+    const root = document.createElement('span')
+    root.className = 'cm-tally-widget'
+    root.setAttribute('contenteditable', 'false')
+
+    const minus = document.createElement('button')
+    minus.type = 'button'
+    minus.className = 'cm-tally-button cm-tally-minus'
+    minus.setAttribute('aria-label', 'Decrement tally')
+    minus.textContent = '\u2212'
+
+    const value = document.createElement('span')
+    value.className = 'cm-tally-value'
+    value.textContent = String(this.value)
+
+    const plus = document.createElement('button')
+    plus.type = 'button'
+    plus.className = 'cm-tally-button cm-tally-plus'
+    plus.setAttribute('aria-label', 'Increment tally')
+    plus.textContent = '+'
+
+    function adjust(delta) {
+      const { state } = view
+      const line = state.doc.lineAt(widget.lineFrom)
+      const doc = state.doc.toString()
+      const current = parseTallyValue(line.text)
+      const nextValue = Math.max(0, current + delta)
+      if (nextValue === current) return
+
+      const result = setTallyValue(doc, line.from, nextValue)
+      if (!result) return
+
+      lightHaptic()
+      view.dispatch({
+        changes: toMinimalChange(doc, result.text),
+      })
+    }
+
+    function onButtonPointerDown(event) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    minus.addEventListener('pointerdown', onButtonPointerDown)
+    plus.addEventListener('pointerdown', onButtonPointerDown)
+    minus.addEventListener('click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      adjust(-1)
+    })
+    plus.addEventListener('click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      adjust(1)
+    })
+
+    root.append(minus, value, plus)
+    return root
+  }
+
+  ignoreEvent() {
+    return true
+  }
+}
+
+function showTallyWidget(line, showMarkers, decorations, hidden) {
+  if (showMarkers) {
+    hideLinePrefix(line, TALLY_PREFIX_LENGTH, true, decorations, hidden)
+    return
+  }
+
+  const value = parseTallyValue(line.text)
+  const range = Decoration.replace({
+    widget: new TallyWidget(value, line.from),
+  }).range(line.from, line.to)
+  decorations.push(range)
+  hidden.push(range)
 }
 
 function hideLinePrefix(line, prefixLength, showMarkers, decorations, hidden) {
-  const prefixFrom = line.from
-  const prefixTo = line.from + prefixLength
+  const indentLength = getLineIndentLength(line.text)
+  const prefixFrom = line.from + indentLength
+  const prefixTo = prefixFrom + prefixLength
 
   if (showMarkers) {
     decorations.push(MARKER_DECORATION.range(prefixFrom, prefixTo))
@@ -256,8 +451,9 @@ function showTodoPrefix(line, state, showMarkers, decorations, hidden) {
       : state === 'cancelled'
         ? TODO_CANCELLED_PREFIX_LENGTH
         : TODO_PREFIX_LENGTH
-  const prefixFrom = line.from
-  const prefixTo = line.from + prefixLength
+  const indentLength = getLineIndentLength(line.text)
+  const prefixFrom = line.from + indentLength
+  const prefixTo = prefixFrom + prefixLength
 
   if (showMarkers) {
     decorations.push(MARKER_DECORATION.range(prefixFrom, prefixTo))
@@ -278,7 +474,10 @@ function findLineTagMatch(line, tags) {
   let earliest = null
 
   for (const tag of sortedTags) {
-    const index = line.indexOf(`${tag.trigger} `)
+    const pattern = `${tag.trigger} `
+    const index = tag.caseSensitive
+      ? line.indexOf(pattern)
+      : line.toLowerCase().indexOf(pattern.toLowerCase())
     if (index === -1) continue
 
     if (!earliest || index < earliest.index) {
@@ -313,7 +512,7 @@ function collectLineDecorations(line, customTags, showMarkers, decorations, hidd
   } else if (isCancelledTodoLine(line.text)) {
     decorations.push(TODO_CANCELLED_LINE_DECORATION.range(line.from))
     showTodoPrefix(line, 'cancelled', showMarkers, decorations, hidden)
-  } else if (line.text.startsWith(TODO_PREFIX)) {
+  } else if (isTodoLine(line.text)) {
     decorations.push(TODO_LINE_DECORATION.range(line.from))
     showTodoPrefix(line, 'incomplete', showMarkers, decorations, hidden)
   }
@@ -326,6 +525,13 @@ function collectLineDecorations(line, customTags, showMarkers, decorations, hidd
   if (isInfoLine(line.text)) {
     decorations.push(INFO_LINE_DECORATION.range(line.from))
     hideLinePrefix(line, INFO_PREFIX_LENGTH, showMarkers, decorations, hidden)
+  }
+
+  if (isTallyLine(line.text)) {
+    decorations.push(TALLY_LINE_DECORATION.range(line.from))
+    showTallyWidget(line, showMarkers, decorations, hidden)
+    // The widget owns the full line; skip tag/inline decorations that would overlap.
+    if (!showMarkers) return
   }
 
   const tagMatch = findLineTagMatch(line.text, customTags)
@@ -505,6 +711,62 @@ export function createEditorTheme({
         backgroundSize: 'contain',
         backgroundRepeat: 'no-repeat',
         backgroundPosition: 'center',
+      },
+      '.cm-line.cm-tally': {
+        display: 'flex',
+        alignItems: 'stretch',
+        position: 'relative',
+        backgroundColor: '#1a2744',
+        color: '#6b8cb0',
+        margin: '10px 20px',
+        padding: '0',
+        borderRadius: '6px',
+        overflow: 'hidden',
+      },
+      '.cm-tally-widget': {
+        display: 'flex',
+        alignItems: 'stretch',
+        justifyContent: 'space-between',
+        boxSizing: 'border-box',
+        flex: '1 1 auto',
+        width: '100%',
+        minHeight: '2.8em',
+        userSelect: 'none',
+        touchAction: 'manipulation',
+      },
+      '.cm-tally-value': {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flex: '1 1 auto',
+        padding: '8px 12px',
+        textAlign: 'center',
+        fontVariantNumeric: 'tabular-nums',
+        fontWeight: '600',
+        color: '#8eafd0',
+      },
+      '.cm-tally-button': {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flex: '0 0 auto',
+        width: '3em',
+        margin: '0',
+        padding: '0',
+        border: 'none',
+        borderRadius: '0',
+        background: 'rgba(107, 140, 176, 0.16)',
+        color: '#8eafd0',
+        fontSize: '1.1em',
+        fontWeight: '600',
+        lineHeight: '1',
+        cursor: 'pointer',
+        userSelect: 'none',
+        touchAction: 'manipulation',
+      },
+      '.cm-tally-button:active': {
+        background: 'rgba(107, 140, 176, 0.28)',
+        color: '#b7d0e8',
       },
       '.cm-content ::selection': {
         backgroundColor: 'rgba(55, 122, 255, 0.35)',

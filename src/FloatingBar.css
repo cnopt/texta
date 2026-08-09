@@ -4,11 +4,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
   width: 100%;
-  min-height: 36px;
+  min-height: 40px;
   margin-top: 0;
-  padding: 2px 12px;
+  padding: 4px 10px;
   border: none;
   border-top: 1px solid rgba(160, 190, 240, 0.12);
   background: #1a2744;
@@ -16,8 +16,8 @@
 }
 
 @media (max-width: 768px) {
-  /* Fixed so showing the bar on first focus does not shrink the editor and
-     reset its scroll position. Bottom padding on .editor-page reserves space. */
+  /* Fixed overlay so showing the bar does not shrink the editor viewport.
+     Scroll clearance lives on .cm-content via .editor-page--bar-visible. */
   .floating-bar {
     position: fixed;
     bottom: 0;
@@ -26,6 +26,14 @@
     z-index: 20;
     margin: 0;
     width: 100%;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 100ms ease-out;
+  }
+
+  .floating-bar.is-visible {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 
@@ -77,10 +85,16 @@
   font-weight: 700;
 }
 
+.floating-bar-tab {
+  position: absolute;
+  left: 12px;
+}
+
 .floating-bar-icon-todo,
 .floating-bar-icon-todo-complete,
 .floating-bar-icon-callout,
-.floating-bar-icon-info {
+.floating-bar-icon-info,
+.floating-bar-icon-tab {
   width: 22px;
   height: 22px;
   fill: none;
@@ -88,9 +102,32 @@
   stroke-width: 2;
 }
 
+.floating-bar-icon-tab {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.floating-bar-icon-tally {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  /* Match floating-bar button text color (#c5d4f0 / #eef3ff when active). */
+  filter: brightness(0) invert(88%) sepia(12%) saturate(507%) hue-rotate(185deg)
+    brightness(97%) contrast(92%);
+}
+
+.floating-bar-button.is-active .floating-bar-icon-tally,
+.floating-bar-button:active .floating-bar-icon-tally {
+  filter: brightness(0) invert(96%) sepia(8%) saturate(302%) hue-rotate(185deg)
+    brightness(103%) contrast(104%);
+}
+
 .floating-bar-icon-callout {
-  fill: currentColor;
-  stroke: none;
+  stroke-linecap: round;
+}
+
+.floating-bar-icon-callout path:first-child {
+  stroke-width: 3.5;
 }
 
 .floating-bar-icon-info {

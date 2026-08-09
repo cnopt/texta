@@ -10,9 +10,14 @@ import FloatingBar from './FloatingBar.jsx'
 import Settings from './Settings.jsx'
 import { getCustomTags } from './customTags.js'
 import {
+  MOBILE_FLOATING_BAR_INSET,
   androidEditorSupport,
   createEditorTheme,
+  editorScrollMargins,
+  ensureTallyTrailingLine,
   formattingDecorations,
+  setEditorBottomScrollInset,
+  withTallyTrailingLine,
 } from './editorExtensions.js'
 import {
   DEFAULT_SETTINGS,
@@ -24,25 +29,32 @@ import {
   CALLOUT_FORMAT,
   HEADING_FORMATS,
   INFO_FORMAT,
+  TALLY_FORMAT,
   TODO_COMPLETE_FORMAT,
   TODO_FORMAT,
   closeFormatsAndInsertNewline,
   createFormatState,
   insertTodoNewline,
+  indentSelectedLines,
+  insertTabAt,
+  lineEndsWithColon,
   deleteCalloutPrefix,
   deleteInfoPrefix,
+  deleteTallyPrefix,
   deleteTodoPrefix,
   getFormatsAt,
   getFormatsForSelection,
   getOpenFormatStack,
   isCalloutSelection,
   isInfoSelection,
+  isTallySelection,
   isTodoCompleteSelection,
   isTodoSelection,
   toggleCallout,
   toggleFormat,
   toggleHeadingFormat,
   toggleInfo,
+  insertTally,
   toggleTodoComplete,
   toggleTodoItem,
 } from './inlineFormat.js'
@@ -121,13 +133,22 @@ export default function Editor() {
   )
   const [todoSpacing, setTodoSpacing] = useState(DEFAULT_SETTINGS.todoSpacing)
   const [stayInTodo, setStayInTodo] = useState(DEFAULT_SETTINGS.stayInTodo)
+  const [autoIndentAfterColon, setAutoIndentAfterColon] = useState(
+    DEFAULT_SETTINGS.autoIndentAfterColon,
+  )
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
+  // Cleared as soon as the Android viewport starts expanding so the bar can
+  // fade out while it rides the keyboard-dismiss resize, instead of popping
+  // off after keyboardDidHide.
+  const [keyboardDismissing, setKeyboardDismissing] = useState(false)
   const [activeFormats, setActiveFormats] = useState(() => createFormatState())
   const [customTags, setCustomTags] = useState([])
 
-  const floatingBarVisible = editorFocused && !settingsOpen && !tagsOpen
+  const floatingBarVisible =
+    editorFocused && !keyboardDismissing && !settingsOpen && !tagsOpen
+  const keyboardOpenRef = useRef(false)
 
   // Held in refs so the CodeMirror extensions, which are created once, always
   // call through to the current render's state.
@@ -159,11 +180,14 @@ export default function Editor() {
         [TODO_COMPLETE_FORMAT]: isTodoCompleteSelection(doc, from, to),
         [CALLOUT_FORMAT]: isCalloutSelection(doc, from, to),
         [INFO_FORMAT]: isInfoSelection(doc, from, to),
+        [TALLY_FORMAT]: isTallySelection(doc, from, to),
       })
     }
 
     if (update.focusChanged) {
-      setEditorFocused(update.view.hasFocus)
+      const focused = update.view.hasFocus
+      setEditorFocused(focused)
+      if (focused) setKeyboardDismissing(false)
     }
   }
 
@@ -172,19 +196,40 @@ export default function Editor() {
     if (from !== to) return false
 
     const doc = view.state.doc.toString()
+    const wantsColonIndent =
+      autoIndentAfterColon && lineEndsWithColon(doc, from)
+
+    function withColonIndent(result) {
+      if (!wantsColonIndent) return result
+      const newLineStart =
+        result.text.lastIndexOf('\n', result.selectionStart - 1) + 1
+      return insertTabAt(
+        result.text,
+        newLineStart,
+        result.selectionStart,
+        result.selectionEnd,
+      )
+    }
 
     if (stayInTodo) {
       const todoResult = insertTodoNewline(doc, from)
       if (todoResult) {
-        applyTextResult(view, todoResult)
+        applyTextResult(view, withColonIndent(todoResult))
         return true
       }
     }
 
-    if (getOpenFormatStack(doc, from).length === 0) return false
+    if (getOpenFormatStack(doc, from).length > 0) {
+      applyTextResult(view, withColonIndent(closeFormatsAndInsertNewline(doc, from)))
+      return true
+    }
 
-    applyTextResult(view, closeFormatsAndInsertNewline(doc, from))
-    return true
+    if (wantsColonIndent) {
+      applyTextResult(view, withColonIndent(closeFormatsAndInsertNewline(doc, from)))
+      return true
+    }
+
+    return false
   }
 
   handleBackspaceRef.current = (view) => {
@@ -195,7 +240,8 @@ export default function Editor() {
     const result =
       deleteTodoPrefix(doc, from) ??
       deleteCalloutPrefix(doc, from) ??
-      deleteInfoPrefix(doc, from)
+      deleteInfoPrefix(doc, from) ??
+      deleteTallyPrefix(doc, from)
     if (!result) return false
 
     applyTextResult(view, result)
@@ -225,6 +271,7 @@ export default function Editor() {
       setDisplayFormattingMarkers(settings.displayFormattingMarkers)
       setTodoSpacing(settings.todoSpacing)
       setStayInTodo(settings.stayInTodo)
+      setAutoIndentAfterColon(settings.autoIndentAfterColon)
       setCustomTags(tags)
       setPageData(page)
       setNoteData(note)
@@ -253,11 +300,13 @@ export default function Editor() {
       EditorView.EDIT_CONTEXT = false
     }
 
-    const initialContent = isNotebookPage
-      ? (pageData?.page.content ?? '')
-      : isExistingNote
-        ? (noteData?.content ?? '')
-        : ''
+    const initialContent = withTallyTrailingLine(
+      isNotebookPage
+        ? (pageData?.page.content ?? '')
+        : isExistingNote
+          ? (noteData?.content ?? '')
+          : '',
+    )
 
     latestContentRef.current = initialContent
 
@@ -268,7 +317,9 @@ export default function Editor() {
           history(),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ spellcheck: 'true' }),
+          editorScrollMargins(),
           ...androidEditorSupport(),
+          ensureTallyTrailingLine(),
           placeholder('Start writing...'),
           Prec.high(
             keymap.of([
@@ -375,8 +426,18 @@ export default function Editor() {
       displayFormattingMarkers,
       todoSpacing,
       stayInTodo,
+      autoIndentAfterColon,
     })
-  }, [fontSize, lineHeight, fontFamily, textAlignment, displayFormattingMarkers, todoSpacing, stayInTodo])
+  }, [
+    fontSize,
+    lineHeight,
+    fontFamily,
+    textAlignment,
+    displayFormattingMarkers,
+    todoSpacing,
+    stayInTodo,
+    autoIndentAfterColon,
+  ])
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
@@ -384,41 +445,95 @@ export default function Editor() {
     Keyboard.setResizeMode({ mode: 'body' }).catch(() => {})
   }, [])
 
+  // Keep scroll-into-view / caret checks above the fixed formatting bar overlay.
+  useEffect(() => {
+    setEditorBottomScrollInset(floatingBarVisible ? MOBILE_FLOATING_BAR_INSET : 0)
+
+    const view = viewRef.current
+    if (!view) return
+
+    view.requestMeasure()
+    if (!view.hasFocus) return
+
+    const head = view.state.selection.main.head
+    view.dispatch({
+      effects: EditorView.scrollIntoView(head, { y: 'nearest' }),
+    })
+  }, [floatingBarVisible])
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
 
     const listeners = []
+    const isAndroid = Capacitor.getPlatform() === 'android'
+
+    function dismissKeyboardUi() {
+      keyboardOpenRef.current = false
+      setKeyboardDismissing(true)
+
+      const view = viewRef.current
+      if (!view || !view.hasFocus) return
+
+      focusSinkRef.current?.focus({ preventScroll: true })
+      view.contentDOM.blur()
+    }
 
     listeners.push(
-      Keyboard.addListener('keyboardDidHide', () => {
-        const view = viewRef.current
-        if (!view || !view.hasFocus) return
-
-        focusSinkRef.current?.focus({ preventScroll: true })
-        view.contentDOM.blur()
+      Keyboard.addListener('keyboardWillHide', () => {
+        dismissKeyboardUi()
       }),
     )
 
-    if (Capacitor.getPlatform() === 'android') {
-      listeners.push(
-        Keyboard.addListener('keyboardDidShow', () => {
-          const view = viewRef.current
-          if (!view?.hasFocus) return
+    listeners.push(
+      Keyboard.addListener('keyboardDidHide', () => {
+        // Fallback when WillHide is late/missing (common on Android).
+        dismissKeyboardUi()
+      }),
+    )
 
+    listeners.push(
+      Keyboard.addListener('keyboardDidShow', () => {
+        keyboardOpenRef.current = true
+        setKeyboardDismissing(false)
+
+        if (!isAndroid) return
+
+        const view = viewRef.current
+        if (!view?.hasFocus) return
+
+        requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              if (!view.hasFocus) return
-              const head = view.state.selection.main.head
-              view.dispatch({
-                effects: EditorView.scrollIntoView(head, { y: 'nearest' }),
-              })
+            if (!view.hasFocus) return
+            const head = view.state.selection.main.head
+            view.dispatch({
+              effects: EditorView.scrollIntoView(head, { y: 'nearest' }),
             })
           })
-        }),
-      )
+        })
+      }),
+    )
+
+    // Android WillHide often fires with DidHide after the resize animation.
+    // Start fading the bar on the first large viewport growth while open.
+    let removeResizeListener = () => {}
+    if (isAndroid) {
+      let lastHeight = window.innerHeight
+
+      function onViewportGrow() {
+        const nextHeight = window.innerHeight
+        const grewBy = nextHeight - lastHeight
+        lastHeight = nextHeight
+
+        if (!keyboardOpenRef.current || grewBy < 60) return
+        dismissKeyboardUi()
+      }
+
+      window.addEventListener('resize', onViewportGrow)
+      removeResizeListener = () => window.removeEventListener('resize', onViewportGrow)
     }
 
     return () => {
+      removeResizeListener()
       listeners.forEach((listener) => listener.then((handle) => handle.remove()))
     }
   }, [])
@@ -462,6 +577,12 @@ export default function Editor() {
       return
     }
 
+    if (format === TALLY_FORMAT) {
+      applyTextResult(view, insertTally(doc, from, to))
+      view.focus()
+      return
+    }
+
     applyTextResult(
       view,
       HEADING_FORMATS.includes(format)
@@ -469,6 +590,15 @@ export default function Editor() {
         : toggleFormat(doc, from, to, format),
     )
 
+    view.focus()
+  }
+
+  function handleIndent() {
+    const view = viewRef.current
+    if (!view) return
+
+    const { from, to } = view.state.selection.main
+    applyTextResult(view, indentSelectedLines(view.state.doc.toString(), from, to))
     view.focus()
   }
 
@@ -513,7 +643,9 @@ export default function Editor() {
   }
 
   return (
-    <div className="editor-page screen-page">
+    <div
+      className={`editor-page screen-page${floatingBarVisible ? ' editor-page--bar-visible' : ''}`}
+    >
       <button
         ref={focusSinkRef}
         type="button"
@@ -569,6 +701,7 @@ export default function Editor() {
         visible={floatingBarVisible}
         activeFormats={activeFormats}
         onToggleFormat={handleToggleFormat}
+        onIndent={handleIndent}
       />
 
       <Settings
@@ -588,6 +721,8 @@ export default function Editor() {
         onTodoSpacingChange={setTodoSpacing}
         stayInTodo={stayInTodo}
         onStayInTodoChange={setStayInTodo}
+        autoIndentAfterColon={autoIndentAfterColon}
+        onAutoIndentAfterColonChange={setAutoIndentAfterColon}
       />
 
       <CustomTagsModal

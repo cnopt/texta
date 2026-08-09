@@ -28,6 +28,8 @@ export default function Settings({
   onTodoSpacingChange,
   stayInTodo,
   onStayInTodoChange,
+  autoIndentAfterColon,
+  onAutoIndentAfterColonChange,
 }) {
   const { render, active } = useBottomSheet(isOpen)
   const [step, setStep] = useState('main')
@@ -237,6 +239,22 @@ export default function Settings({
                   aria-checked={stayInTodo}
                   aria-labelledby="settings-stay-in-todo-label"
                   onClick={() => onStayInTodoChange(!stayInTodo)}
+                >
+                  <span className="settings-toggle-thumb" aria-hidden="true" />
+                </button>
+              </li>
+
+              <li className="settings-item">
+                <span className="settings-item-label" id="settings-auto-indent-colon-label">
+                  Auto-indent after colon
+                </span>
+                <button
+                  type="button"
+                  className={`settings-toggle${autoIndentAfterColon ? ' settings-toggle--on' : ''}`}
+                  role="switch"
+                  aria-checked={autoIndentAfterColon}
+                  aria-labelledby="settings-auto-indent-colon-label"
+                  onClick={() => onAutoIndentAfterColonChange(!autoIndentAfterColon)}
                 >
                   <span className="settings-toggle-thumb" aria-hidden="true" />
                 </button>

@@ -144,8 +144,17 @@
 }
 
 @media (max-width: 768px) {
+  /* Let the editor fill to the screen edge; the formatting bar overlays
+     instead of permanently reserving a black strip of page padding. */
   .editor-page {
-    /* Match the fixed formatting bar height so content sits flush above it. */
-    padding-bottom: 40px;
+    padding-bottom: 0;
+  }
+
+  /* Extra scroll padding so the last lines clear the fixed bar when shown.
+     Applied on .cm-content (not the page) so the editor viewport height
+     stays stable when focus toggles the bar. Keep in sync with
+     MOBILE_FLOATING_BAR_INSET in editorExtensions.js. */
+  .editor-page--bar-visible .editor-host .cm-content {
+    padding-bottom: calc(1.5rem + 40px);
   }
 }

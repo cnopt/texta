@@ -17,6 +17,7 @@ const DEFAULT_TEXT_COLOR = '#ebebeb'
 const EMPTY_FORM = {
   trigger: '',
   textColor: DEFAULT_TEXT_COLOR,
+  caseSensitive: false,
   ...DEFAULT_TAG_FORMAT,
 }
 
@@ -132,6 +133,7 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
       bold: tag.bold,
       italic: tag.italic,
       underline: tag.underline,
+      caseSensitive: Boolean(tag.caseSensitive),
     })
     setStep('edit')
   }
@@ -154,6 +156,7 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
       bold: form.bold,
       italic: form.italic,
       underline: form.underline,
+      caseSensitive: form.caseSensitive,
     })
 
     if (!created) return
@@ -306,6 +309,22 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
                   underline={form.underline}
                   onChange={(updates) => void handleFormChange(updates)}
                 />
+              </div>
+
+              <div className="custom-tags-formatting-row">
+                <span className="custom-tags-field-label" id="custom-tags-case-label">
+                  Case sensitive
+                </span>
+                <button
+                  type="button"
+                  className={`custom-tags-toggle${form.caseSensitive ? ' custom-tags-toggle--on' : ''}`}
+                  role="switch"
+                  aria-checked={form.caseSensitive}
+                  aria-labelledby="custom-tags-case-label"
+                  onClick={() => void handleFormChange({ caseSensitive: !form.caseSensitive })}
+                >
+                  <span className="custom-tags-toggle-thumb" aria-hidden="true" />
+                </button>
               </div>
 
               <div className="custom-tags-preview">

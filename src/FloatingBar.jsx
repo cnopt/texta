@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
+import tallyIcon from './assets/tally.svg'
 import { HEADING_FORMATS } from './inlineFormat.js'
 import './FloatingBar.css'
 
 const MOBILE_QUERY = '(max-width: 768px)'
+const EXIT_MS = 100
 
 const HEADING_OPTIONS = HEADING_FORMATS.map((format, index) => ({
   format,
@@ -14,6 +16,7 @@ export default function FloatingBar({
   visible,
   activeFormats = {},
   onToggleFormat,
+  onIndent,
 }) {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined'
@@ -21,6 +24,8 @@ export default function FloatingBar({
       : false,
   )
   const [headingsOpen, setHeadingsOpen] = useState(false)
+  const [mounted, setMounted] = useState(visible)
+  const [shown, setShown] = useState(false)
 
   useEffect(() => {
     const media = window.matchMedia(MOBILE_QUERY)
@@ -39,6 +44,26 @@ export default function FloatingBar({
     if (!visible) setHeadingsOpen(false)
   }, [visible])
 
+  useLayoutEffect(() => {
+    if (!isMobile) {
+      setMounted(false)
+      setShown(false)
+      return
+    }
+
+    if (visible) {
+      setMounted(true)
+      const showFrame = requestAnimationFrame(() => {
+        setShown(true)
+      })
+      return () => cancelAnimationFrame(showFrame)
+    }
+
+    setShown(false)
+    const hideTimer = window.setTimeout(() => setMounted(false), EXIT_MS)
+    return () => window.clearTimeout(hideTimer)
+  }, [visible, isMobile])
+
   function preserveEditorFocus(event) {
     event.preventDefault()
   }
@@ -48,18 +73,40 @@ export default function FloatingBar({
     setHeadingsOpen(false)
   }
 
-  if (!visible || !isMobile) return null
+  if (!mounted || !isMobile) return null
 
   const activeHeading = HEADING_FORMATS.find((format) => activeFormats[format])
+  const showTabTool = !activeFormats.callout && !activeFormats.info
 
   return (
     <div
-      className="floating-bar"
+      className={`floating-bar${shown ? ' is-visible' : ''}`}
       role="toolbar"
       aria-label="Text formatting"
+      aria-hidden={!shown}
+      inert={!shown ? true : undefined}
       onMouseDown={preserveEditorFocus}
       onTouchStart={preserveEditorFocus}
     >
+      {showTabTool && (
+        <button
+          type="button"
+          className="floating-bar-button floating-bar-tab"
+          aria-label="Indent line"
+          onClick={() => onIndent?.()}
+        >
+          <svg
+            className="floating-bar-icon floating-bar-icon-tab"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path d="M5 5v14" />
+            <path d="M10 12h9" />
+            <path d="M15 8l4 4-4 4" />
+          </svg>
+        </button>
+      )}
+
       {headingsOpen && (
         <div className="floating-bar-flyout" role="group" aria-label="Heading level">
           {HEADING_OPTIONS.map(({ format, level, label }) => (
@@ -169,7 +216,10 @@ export default function FloatingBar({
           viewBox="0 0 24 24"
           aria-hidden="true"
         >
-          <rect x="5" y="5" width="14" height="14" rx="2.5" />
+          <path d="M6 5v14" />
+          <path d="M11 8h7" />
+          <path d="M11 12h7" />
+          <path d="M11 16h5" />
         </svg>
       </button>
 
@@ -189,6 +239,22 @@ export default function FloatingBar({
           <path d="M12 11v5" />
           <circle className="floating-bar-icon-info-dot" cx="12" cy="8" r="1" />
         </svg>
+      </button>
+
+      <button
+        type="button"
+        className={`floating-bar-button${activeFormats.tally ? ' is-active' : ''}`}
+        aria-label="Tally counter"
+        aria-pressed={Boolean(activeFormats.tally)}
+        onClick={() => onToggleFormat?.('tally')}
+      >
+        <img
+          className="floating-bar-icon floating-bar-icon-tally"
+          src={tallyIcon}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+        />
       </button>
     </div>
   )

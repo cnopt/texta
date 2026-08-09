@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   displayFormattingMarkers: false,
   todoSpacing: false,
   stayInTodo: false,
+  autoIndentAfterColon: true,
 }
 
 function defaultLineHeightForFontSize(fontSize) {
@@ -69,6 +70,10 @@ function normalizeSettings(settings) {
     displayFormattingMarkers: Boolean(settings?.displayFormattingMarkers),
     todoSpacing: Boolean(settings?.todoSpacing),
     stayInTodo: Boolean(settings?.stayInTodo),
+    autoIndentAfterColon:
+      settings?.autoIndentAfterColon == null
+        ? DEFAULT_SETTINGS.autoIndentAfterColon
+        : Boolean(settings.autoIndentAfterColon),
   }
 }
 
