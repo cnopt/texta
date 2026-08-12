@@ -4,10 +4,16 @@ import CreateNotebook from './CreateNotebook.jsx'
 import NewPageTypeModal from './NewPageTypeModal.jsx'
 import NotebookIcon from './NotebookIcon.jsx'
 import PageTab from './PageTab.jsx'
-import { createPage, deleteNotebook, getNotebookById } from './notebooks.js'
+import { createPage, deleteNotebook, getCachedNotebookById, getNotebookById } from './notebooks.js'
 import './CircleButton.css'
 import './ScreenToolbar.css'
 import './NotebookHomeView.css'
+
+function seedNotebook(id, locationState) {
+  const fromState = locationState?.notebook
+  if (fromState?.id === id) return fromState
+  return getCachedNotebookById(id)
+}
 
 function formatCreatedDate(iso) {
   if (!iso) return ''
@@ -23,8 +29,8 @@ export default function NotebookHomeView() {
   const { id } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const [notebook, setNotebook] = useState(null)
-  const [ready, setReady] = useState(false)
+  const [notebook, setNotebook] = useState(() => seedNotebook(id, location.state))
+  const [ready, setReady] = useState(() => Boolean(seedNotebook(id, location.state)))
   const [pageTypeModalOpen, setPageTypeModalOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
@@ -38,16 +44,24 @@ export default function NotebookHomeView() {
 
   useEffect(() => {
     let cancelled = false
+    const seeded = seedNotebook(id, location.state)
+
+    if (seeded) {
+      setNotebook(seeded)
+      setReady(true)
+    } else {
+      setNotebook((current) => (current?.id === id ? current : null))
+      setReady(false)
+    }
 
     async function loadNotebook() {
-      setReady(false)
       const next = await getNotebookById(id)
       if (cancelled) return
       setNotebook(next)
       setReady(true)
     }
 
-    loadNotebook()
+    void loadNotebook()
 
     return () => {
       cancelled = true
@@ -130,11 +144,11 @@ export default function NotebookHomeView() {
     return () => clearTimeout(clearStateTimer)
   }, [enterPhase, contentAnimating, notebook, location.pathname, location.state, navigate])
 
-  if (!ready) {
-    return <div className="notebook-home notebook-home--missing screen-page" />
-  }
-
   if (!notebook) {
+    if (!ready) {
+      return <div className="notebook-home screen-page" />
+    }
+
     return (
       <div className="notebook-home notebook-home--missing screen-page">
         <header className="screen-toolbar notebook-home-toolbar">
@@ -201,15 +215,14 @@ export default function NotebookHomeView() {
         <header className="screen-toolbar notebook-home-toolbar">
           <button
             type="button"
-            className="circle-button notebook-home-fade-item"
-            style={{ '--stagger-index': 0 }}
+            className="circle-button"
             onClick={() => navigate('/')}
             aria-label="Go back"
           >
             ←
           </button>
 
-          <div className="notebook-home-menu-wrap notebook-home-fade-item" style={{ '--stagger-index': 0 }} ref={menuRef}>
+          <div className="notebook-home-menu-wrap" ref={menuRef}>
             <button
               type="button"
               className="circle-button"

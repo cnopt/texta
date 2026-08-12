@@ -1,4 +1,4 @@
-package com.getcapacitor.myapp;
+package com.hanno.texta;
 
 import static org.junit.Assert.*;
 

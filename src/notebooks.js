@@ -3,12 +3,24 @@ import { readJson, writeJson } from './storage.js'
 
 const FILENAME = 'notebooks.json'
 
+let notebooksCache = null
+
+function rememberNotebooks(notebooks) {
+  notebooksCache = notebooks
+  return notebooks
+}
+
+export function getCachedNotebookById(id) {
+  if (!id || !Array.isArray(notebooksCache)) return null
+  return notebooksCache.find((notebook) => notebook.id === id) ?? null
+}
+
 export async function getNotebooks() {
   try {
     const stored = await readJson(FILENAME, [])
-    return Array.isArray(stored) ? stored : []
+    return rememberNotebooks(Array.isArray(stored) ? stored : [])
   } catch {
-    return []
+    return notebooksCache ?? []
   }
 }
 
@@ -29,6 +41,7 @@ export async function createNotebook({ name, icon }) {
 
   notebooks.push(notebook)
   await writeJson(FILENAME, notebooks)
+  rememberNotebooks(notebooks)
 
   return notebook
 }
@@ -41,6 +54,7 @@ export async function updateNotebook(id, { name, icon }) {
   notebook.name = name.trim()
   notebook.icon = icon
   await writeJson(FILENAME, notebooks)
+  rememberNotebooks(notebooks)
 
   return notebook
 }
@@ -51,6 +65,7 @@ export async function deleteNotebook(id) {
   if (next.length === notebooks.length) return false
 
   await writeJson(FILENAME, next)
+  rememberNotebooks(next)
   return true
 }
 
@@ -68,6 +83,7 @@ export async function createPage(notebookId, { title = 'Untitled' } = {}) {
 
   notebook.pages.push(page)
   await writeJson(FILENAME, notebooks)
+  rememberNotebooks(notebooks)
 
   return page
 }
@@ -92,6 +108,36 @@ export async function updatePageContent(notebookId, pageId, content) {
 
   page.content = content
   await writeJson(FILENAME, notebooks)
+  rememberNotebooks(notebooks)
 
   return page
+}
+
+export async function updatePageTitle(notebookId, pageId, title) {
+  const notebooks = await getNotebooks()
+  const notebook = notebooks.find((item) => item.id === notebookId)
+  if (!notebook) return null
+
+  const page = notebook.pages.find((item) => item.id === pageId)
+  if (!page) return null
+
+  page.title = title.trim() || 'Untitled'
+  await writeJson(FILENAME, notebooks)
+  rememberNotebooks(notebooks)
+
+  return page
+}
+
+export async function deletePage(notebookId, pageId) {
+  const notebooks = await getNotebooks()
+  const notebook = notebooks.find((item) => item.id === notebookId)
+  if (!notebook) return false
+
+  const nextPages = notebook.pages.filter((item) => item.id !== pageId)
+  if (nextPages.length === notebook.pages.length) return false
+
+  notebook.pages = nextPages
+  await writeJson(FILENAME, notebooks)
+  rememberNotebooks(notebooks)
+  return true
 }

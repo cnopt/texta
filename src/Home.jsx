@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import CreateNotebook from './CreateNotebook.jsx'
 import NoteCard from './NoteCard.jsx'
 import QuickBarNewNoteBar from './QuickBarNewNoteBar.jsx'
@@ -7,15 +7,15 @@ import QuickBarSearchBar from './QuickBarSearchBar.jsx'
 import HomeSettings from './HomeSettings.jsx'
 import NotebookIcon from './NotebookIcon.jsx'
 import { DEFAULT_SETTINGS, getHomeSettings, saveHomeSettings } from './homeSettings.js'
+import { createDefaultFloatingBarTools, DEFAULT_FLOATING_BAR_COLOR } from './floatingBarSettings.js'
 import { getNotebooks } from './notebooks.js'
 import { getNotes } from './notes.js'
 import { getNoteCardMetrics } from './noteCardGrid.js'
 import { getDisplayText } from './inlineFormat.js'
 import './Home.css'
 
-export default function Home() {
+export default function Home({ active = true }) {
   const navigate = useNavigate()
-  const location = useLocation()
   const [notebooks, setNotebooks] = useState([])
   const [notes, setNotes] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -26,11 +26,31 @@ export default function Home() {
   const [noteCardDisplayMode, setNoteCardDisplayMode] = useState(
     DEFAULT_SETTINGS.noteCardDisplayMode,
   )
+  const [floatingBarColor, setFloatingBarColor] = useState(DEFAULT_FLOATING_BAR_COLOR)
+  const [floatingBarTools, setFloatingBarTools] = useState(createDefaultFloatingBarTools())
+
+  async function loadHomeData() {
+    const [nextNotebooks, nextNotes, homeSettings] = await Promise.all([
+      getNotebooks(),
+      getNotes(),
+      getHomeSettings(),
+    ])
+
+    setNotebooks(nextNotebooks)
+    setNotes(nextNotes)
+    setQuickBar(homeSettings.quickBar)
+    setSections(homeSettings.sections)
+    setNoteCardDisplayMode(homeSettings.noteCardDisplayMode)
+    setFloatingBarColor(homeSettings.floatingBarColor)
+    setFloatingBarTools(homeSettings.floatingBarTools)
+  }
 
   useEffect(() => {
+    if (!active) return
+
     let cancelled = false
 
-    async function loadHomeData() {
+    async function load() {
       const [nextNotebooks, nextNotes, homeSettings] = await Promise.all([
         getNotebooks(),
         getNotes(),
@@ -44,14 +64,16 @@ export default function Home() {
       setQuickBar(homeSettings.quickBar)
       setSections(homeSettings.sections)
       setNoteCardDisplayMode(homeSettings.noteCardDisplayMode)
+      setFloatingBarColor(homeSettings.floatingBarColor)
+      setFloatingBarTools(homeSettings.floatingBarTools)
     }
 
-    loadHomeData()
+    void load()
 
     return () => {
       cancelled = true
     }
-  }, [location.key])
+  }, [active])
 
   const filteredNotebooks =
     quickBar === 'search'
@@ -86,6 +108,16 @@ export default function Home() {
   function handleNoteCardDisplayModeChange(nextMode) {
     setNoteCardDisplayMode(nextMode)
     void saveHomeSettings({ noteCardDisplayMode: nextMode })
+  }
+
+  function handleFloatingBarColorChange(nextColor) {
+    setFloatingBarColor(nextColor)
+    void saveHomeSettings({ floatingBarColor: nextColor })
+  }
+
+  function handleFloatingBarToolsChange(nextTools) {
+    setFloatingBarTools(nextTools)
+    void saveHomeSettings({ floatingBarTools: nextTools })
   }
 
   function handleCreateNote() {
@@ -133,7 +165,7 @@ export default function Home() {
                   style={{ '--notebook-color': notebook.icon }}
                   onClick={() =>
                     navigate(`/notebook/${notebook.id}`, {
-                      state: { transitionBackground: true },
+                      state: { transitionBackground: true, notebook },
                     })
                   }
                 >
@@ -211,6 +243,11 @@ export default function Home() {
         onSectionChange={handleSectionChange}
         noteCardDisplayMode={noteCardDisplayMode}
         onNoteCardDisplayModeChange={handleNoteCardDisplayModeChange}
+        floatingBarColor={floatingBarColor}
+        onFloatingBarColorChange={handleFloatingBarColorChange}
+        floatingBarTools={floatingBarTools}
+        onFloatingBarToolsChange={handleFloatingBarToolsChange}
+        onDataImported={loadHomeData}
       />
     </div>
   )

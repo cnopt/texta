@@ -10,8 +10,8 @@
   margin-top: 0;
   padding: 4px 10px;
   border: none;
-  border-top: 1px solid rgba(160, 190, 240, 0.12);
-  background: #1a2744;
+  border-top: 1px solid var(--floating-bar-border, rgba(160, 190, 240, 0.12));
+  background: var(--floating-bar-bg, #1a2744);
   box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25);
 }
 
@@ -35,6 +35,14 @@
     opacity: 1;
     pointer-events: auto;
   }
+
+  .floating-bar--preview {
+    position: relative;
+    opacity: 1;
+    pointer-events: auto;
+    border-radius: 12px;
+    border: 1px solid var(--floating-bar-border, rgba(160, 190, 240, 0.12));
+  }
 }
 
 .floating-bar-button {
@@ -47,14 +55,14 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #c5d4f0;
+  color: var(--floating-bar-fg, #c5d4f0);
   cursor: pointer;
 }
 
 .floating-bar-button:active,
 .floating-bar-button.is-active {
-  background: rgba(197, 212, 240, 0.14);
-  color: #eef3ff;
+  background: var(--floating-bar-active-bg, rgba(197, 212, 240, 0.14));
+  color: var(--floating-bar-fg-active, #eef3ff);
 }
 
 .floating-bar-icon {
@@ -86,8 +94,7 @@
 }
 
 .floating-bar-tab {
-  position: absolute;
-  left: 12px;
+  flex-shrink: 0;
 }
 
 .floating-bar-icon-todo,
@@ -111,15 +118,12 @@
   width: 22px;
   height: 22px;
   object-fit: contain;
-  /* Match floating-bar button text color (#c5d4f0 / #eef3ff when active). */
-  filter: brightness(0) invert(88%) sepia(12%) saturate(507%) hue-rotate(185deg)
-    brightness(97%) contrast(92%);
+  filter: var(--floating-bar-tally-filter);
 }
 
 .floating-bar-button.is-active .floating-bar-icon-tally,
 .floating-bar-button:active .floating-bar-icon-tally {
-  filter: brightness(0) invert(96%) sepia(8%) saturate(302%) hue-rotate(185deg)
-    brightness(103%) contrast(104%);
+  filter: var(--floating-bar-tally-filter-active);
 }
 
 .floating-bar-icon-callout {
@@ -185,9 +189,9 @@
   align-items: center;
   gap: 4px;
   padding: 4px;
-  border: 1px solid rgba(160, 190, 240, 0.16);
+  border: 1px solid var(--floating-bar-flyout-border, rgba(160, 190, 240, 0.16));
   border-radius: 12px;
-  background: #223256;
+  background: var(--floating-bar-flyout-bg, #223256);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
   animation: floating-bar-flyout-in 120ms ease-out;
 }

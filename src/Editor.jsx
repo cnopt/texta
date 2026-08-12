@@ -24,6 +24,8 @@ import {
   getEditorSettings,
   saveEditorSettings,
 } from './editorSettings.js'
+import { getHomeSettings } from './homeSettings.js'
+import { createDefaultFloatingBarTools, DEFAULT_FLOATING_BAR_COLOR } from './floatingBarSettings.js'
 import { getFontFamilyStack } from './fontFamilies.js'
 import {
   CALLOUT_FORMAT,
@@ -59,8 +61,9 @@ import {
   toggleTodoItem,
 } from './inlineFormat.js'
 import { setEditorLeaveHandler } from './editorLeave.js'
-import { getPageById, updatePageContent } from './notebooks.js'
+import { deletePage, getPageById, updatePageContent, updatePageTitle } from './notebooks.js'
 import { createNote, getNoteById, updateNoteContent } from './notes.js'
+import RenamePageModal from './RenamePageModal.jsx'
 import './CircleButton.css'
 import './ScreenToolbar.css'
 import './Editor.css'
@@ -116,6 +119,7 @@ export default function Editor() {
   const hostRef = useRef(null)
   const viewRef = useRef(null)
   const focusSinkRef = useRef(null)
+  const pageMenuRef = useRef(null)
   const latestContentRef = useRef('')
   const persistedNewNoteRef = useRef(false)
   const settingsHydratedRef = useRef(false)
@@ -138,6 +142,9 @@ export default function Editor() {
   )
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
+  const [pageMenuOpen, setPageMenuOpen] = useState(false)
+  const [renamePageOpen, setRenamePageOpen] = useState(false)
+  const [deletePageConfirmOpen, setDeletePageConfirmOpen] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
   // Cleared as soon as the Android viewport starts expanding so the bar can
   // fade out while it rides the keyboard-dismiss resize, instead of popping
@@ -145,6 +152,8 @@ export default function Editor() {
   const [keyboardDismissing, setKeyboardDismissing] = useState(false)
   const [activeFormats, setActiveFormats] = useState(() => createFormatState())
   const [customTags, setCustomTags] = useState([])
+  const [floatingBarColor, setFloatingBarColor] = useState(DEFAULT_FLOATING_BAR_COLOR)
+  const [floatingBarTools, setFloatingBarTools] = useState(createDefaultFloatingBarTools())
 
   const floatingBarVisible =
     editorFocused && !keyboardDismissing && !settingsOpen && !tagsOpen
@@ -255,9 +264,10 @@ export default function Editor() {
       setReady(false)
       settingsHydratedRef.current = false
 
-      const [settings, tags, page, note] = await Promise.all([
+      const [settings, tags, homeSettings, page, note] = await Promise.all([
         getEditorSettings(),
         getCustomTags(),
+        getHomeSettings(),
         isNotebookPage ? getPageById(notebookId, pageId) : Promise.resolve(null),
         isExistingNote ? getNoteById(noteId) : Promise.resolve(null),
       ])
@@ -273,6 +283,8 @@ export default function Editor() {
       setStayInTodo(settings.stayInTodo)
       setAutoIndentAfterColon(settings.autoIndentAfterColon)
       setCustomTags(tags)
+      setFloatingBarColor(homeSettings.floatingBarColor)
+      setFloatingBarTools(homeSettings.floatingBarTools)
       setPageData(page)
       setNoteData(note)
       settingsHydratedRef.current = true
@@ -285,6 +297,28 @@ export default function Editor() {
       cancelled = true
     }
   }, [isNotebookPage, isExistingNote, notebookId, pageId, noteId])
+
+  useEffect(() => {
+    if (!pageMenuOpen) return undefined
+
+    function handlePointerDown(event) {
+      if (pageMenuRef.current && !pageMenuRef.current.contains(event.target)) {
+        setPageMenuOpen(false)
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setPageMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [pageMenuOpen])
 
   // Layout effect so the editor is mounted and filled in before the browser
   // paints, otherwise the first frame shows an empty document.
@@ -393,6 +427,39 @@ export default function Editor() {
     }
 
     navigate('/')
+  }
+
+  function handlePageTitleClick() {
+    setPageMenuOpen((open) => !open)
+  }
+
+  function handlePageRename() {
+    setPageMenuOpen(false)
+    setRenamePageOpen(true)
+  }
+
+  async function handlePageRenamed(nextTitle) {
+    const updated = await updatePageTitle(notebookId, pageId, nextTitle)
+    if (!updated) return
+
+    setPageData((current) =>
+      current
+        ? {
+            ...current,
+            page: { ...current.page, title: updated.title },
+          }
+        : current,
+    )
+  }
+
+  function handlePageDeleteClick() {
+    setPageMenuOpen(false)
+    setDeletePageConfirmOpen(true)
+  }
+
+  async function handleConfirmPageDelete() {
+    await deletePage(notebookId, pageId)
+    navigate(`/notebook/${notebookId}`)
   }
 
   useEffect(() => {
@@ -669,7 +736,41 @@ export default function Editor() {
         )}
 
         {isNotebookPage && (
-          <h1 className="editor-page-title">{pageData?.page.title}</h1>
+          <div
+            className="editor-page-title-wrap"
+            ref={pageMenuRef}
+          >
+            <button
+              type="button"
+              className="editor-page-title"
+              onClick={handlePageTitleClick}
+              aria-expanded={pageMenuOpen}
+              aria-haspopup="menu"
+            >
+              {pageData?.page.title}
+            </button>
+
+            {pageMenuOpen && (
+              <div className="editor-page-flyout" role="menu">
+                <button
+                  type="button"
+                  className="editor-page-flyout-item"
+                  role="menuitem"
+                  onClick={handlePageRename}
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  className="editor-page-flyout-item editor-page-flyout-item--danger"
+                  role="menuitem"
+                  onClick={handlePageDeleteClick}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         <div className="editor-header-actions">
@@ -702,6 +803,8 @@ export default function Editor() {
         activeFormats={activeFormats}
         onToggleFormat={handleToggleFormat}
         onIndent={handleIndent}
+        colorId={floatingBarColor}
+        tools={floatingBarTools}
       />
 
       <Settings
@@ -731,6 +834,55 @@ export default function Editor() {
         onTagsChange={setCustomTags}
         fontFamily={fontFamily}
       />
+
+      {isNotebookPage && (
+        <RenamePageModal
+          isOpen={renamePageOpen}
+          onClose={() => setRenamePageOpen(false)}
+          title={pageData?.page.title ?? ''}
+          onSaved={(nextTitle) => void handlePageRenamed(nextTitle)}
+        />
+      )}
+
+      {deletePageConfirmOpen && pageData && (
+        <>
+          <div
+            className="editor-page-confirm-backdrop"
+            onClick={() => setDeletePageConfirmOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            className="editor-page-confirm"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="page-delete-title"
+            aria-describedby="page-delete-desc"
+          >
+            <h2 id="page-delete-title" className="editor-page-confirm-title">
+              Delete page?
+            </h2>
+            <p id="page-delete-desc" className="editor-page-confirm-text">
+              “{pageData.page.title}” will be permanently deleted.
+            </p>
+            <div className="editor-page-confirm-actions">
+              <button
+                type="button"
+                className="editor-page-confirm-button"
+                onClick={() => setDeletePageConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="editor-page-confirm-button editor-page-confirm-button--danger"
+                onClick={() => void handleConfirmPageDelete()}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

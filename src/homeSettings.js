@@ -1,4 +1,10 @@
 import { readJson, writeJson } from './storage.js'
+import {
+  DEFAULT_FLOATING_BAR_COLOR,
+  createDefaultFloatingBarTools,
+  normalizeFloatingBarColor,
+  normalizeFloatingBarTools,
+} from './floatingBarSettings.js'
 
 const FILENAME = 'homeSettings.json'
 
@@ -20,6 +26,8 @@ const DEFAULT_SETTINGS = {
     notes: true,
   },
   noteCardDisplayMode: 'fixed',
+  floatingBarColor: DEFAULT_FLOATING_BAR_COLOR,
+  floatingBarTools: createDefaultFloatingBarTools(),
 }
 
 function normalizeQuickBar(value) {
@@ -44,6 +52,8 @@ function normalizeSettings(settings) {
     quickBar: normalizeQuickBar(settings?.quickBar),
     sections: normalizeSections(settings?.sections),
     noteCardDisplayMode: normalizeNoteCardDisplayMode(settings?.noteCardDisplayMode),
+    floatingBarColor: normalizeFloatingBarColor(settings?.floatingBarColor),
+    floatingBarTools: normalizeFloatingBarTools(settings?.floatingBarTools),
   }
 }
 
@@ -65,6 +75,7 @@ export async function saveHomeSettings(partial) {
     sections: partial?.sections
       ? { ...current.sections, ...partial.sections }
       : current.sections,
+    floatingBarTools: partial?.floatingBarTools ?? current.floatingBarTools,
   }
   const next = normalizeSettings(merged)
   await writeJson(FILENAME, next)

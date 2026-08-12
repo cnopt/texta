@@ -1,14 +1,19 @@
 {
-  "name": "vite-starter",
+  "name": "texta",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "bs": "vite build && npx cap sync"
+    "bs": "vite build && npx cap sync",
+    "android:sync": "vite build && npx cap sync android",
+    "android:run": "powershell -ExecutionPolicy Bypass -File scripts/run-android.ps1",
+    "android:bundle": "powershell -ExecutionPolicy Bypass -File scripts/bundle-release.ps1",
+    "android:release": "npm run android:sync && npm run android:bundle",
+    "android:keystore": "powershell -ExecutionPolicy Bypass -File scripts/create-upload-keystore.ps1"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -19,6 +24,7 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "^8.5.0",
     "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/share": "^8.0.1",
     "@codemirror/commands": "^6.10.4",
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.7",

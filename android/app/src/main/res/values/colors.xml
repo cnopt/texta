@@ -4,4 +4,7 @@
          (window background during the keyboard animation, rotation, launch)
          never flash a different colour. -->
     <color name="appBackground">#000000</color>
+    <color name="colorPrimary">#111111</color>
+    <color name="colorPrimaryDark">#000000</color>
+    <color name="colorAccent">#F5F5F5</color>
 </resources>

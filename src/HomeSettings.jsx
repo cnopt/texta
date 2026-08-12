@@ -1,4 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  exportBackup,
+  importBackupFromFile,
+  isAbortError,
+} from './backup.js'
+import FloatingBarToolsReorder from './FloatingBarToolsReorder.jsx'
+import {
+  FLOATING_BAR_COLOR_OPTIONS,
+  getFloatingBarColorLabel,
+} from './floatingBarSettings.js'
 import { NOTE_CARD_DISPLAY_MODE_LABELS } from './homeSettings.js'
 import { useBottomSheet } from './useBottomSheet.js'
 import './HomeSettings.css'
@@ -27,26 +37,93 @@ export default function HomeSettings({
   onSectionChange,
   noteCardDisplayMode,
   onNoteCardDisplayModeChange,
+  floatingBarColor,
+  onFloatingBarColorChange,
+  floatingBarTools,
+  onFloatingBarToolsChange,
+  onDataImported,
 }) {
   const { render, active } = useBottomSheet(isOpen)
   const [step, setStep] = useState('main')
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupMessage, setBackupMessage] = useState(null)
+  const importInputRef = useRef(null)
 
   useEffect(() => {
     if (isOpen) return
 
-    const timer = setTimeout(() => setStep('main'), 300)
+    const timer = setTimeout(() => {
+      setStep('main')
+      setBackupMessage(null)
+      setBackupBusy(false)
+    }, 300)
     return () => clearTimeout(timer)
   }, [isOpen])
 
   if (!render) return null
 
   function handleBack() {
-    if (step === 'quick-bar' || step === 'sections' || step === 'note-cards') {
+    if (
+      step === 'quick-bar' ||
+      step === 'sections' ||
+      step === 'note-cards' ||
+      step === 'floating-bar-color' ||
+      step === 'floating-bar-tools'
+    ) {
       setStep('main')
       return
     }
 
     onClose()
+  }
+
+  async function handleExport() {
+    if (backupBusy) return
+
+    setBackupBusy(true)
+    setBackupMessage(null)
+
+    try {
+      await exportBackup()
+      setBackupMessage({ tone: 'success', text: 'Settings exported.' })
+    } catch (error) {
+      if (isAbortError(error)) return
+      setBackupMessage({
+        tone: 'error',
+        text: error?.message || 'Export failed.',
+      })
+    } finally {
+      setBackupBusy(false)
+    }
+  }
+
+  function handleImportClick() {
+    if (backupBusy) return
+    setBackupMessage(null)
+    importInputRef.current?.click()
+  }
+
+  async function handleImportFileChange(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || backupBusy) return
+
+    setBackupBusy(true)
+    setBackupMessage(null)
+
+    try {
+      await importBackupFromFile(file)
+      await onDataImported?.()
+      setBackupMessage({ tone: 'success', text: 'Settings imported.' })
+    } catch (error) {
+      if (isAbortError(error)) return
+      setBackupMessage({
+        tone: 'error',
+        text: error?.message || 'Import failed.',
+      })
+    } finally {
+      setBackupBusy(false)
+    }
   }
 
   const selectedQuickBar =
@@ -66,6 +143,8 @@ export default function HomeSettings({
       : visibleSectionLabels.length > 0
         ? visibleSectionLabels.join(', ')
         : 'None'
+
+  const selectedFloatingBarColor = getFloatingBarColorLabel(floatingBarColor)
 
   return (
     <>
@@ -98,61 +177,151 @@ export default function HomeSettings({
                 ? 'Sections'
                 : step === 'note-cards'
                   ? 'Note cards'
-                  : 'Customise homepage'}
+                  : step === 'floating-bar-color'
+                    ? 'Floating bar colour'
+                    : step === 'floating-bar-tools'
+                      ? 'Reorder tools'
+                      : 'Settings'}
           </h2>
         </header>
 
         <div className="home-settings-body">
           {step === 'main' ? (
-            <ul key="main" className="home-settings-list home-settings-step">
-              <li className="home-settings-item">
-                <button
-                  type="button"
-                  className="home-settings-nav-button"
-                  onClick={() => setStep('quick-bar')}
+            <div key="main" className="home-settings-step">
+              <h3 className="home-settings-subheading">Customise homepage</h3>
+
+              <ul className="home-settings-list home-settings-list--grouped">
+                <li className="home-settings-item">
+                  <button
+                    type="button"
+                    className="home-settings-nav-button"
+                    onClick={() => setStep('quick-bar')}
+                  >
+                    <span className="home-settings-item-label">Quick bar</span>
+                    <span className="home-settings-nav-meta">
+                      <span className="home-settings-item-value">{selectedQuickBar.label}</span>
+                      <span className="home-settings-nav-arrow" aria-hidden="true">
+                        →
+                      </span>
+                    </span>
+                  </button>
+                </li>
+                <li className="home-settings-item">
+                  <button
+                    type="button"
+                    className="home-settings-nav-button"
+                    onClick={() => setStep('sections')}
+                  >
+                    <span className="home-settings-item-label">Sections</span>
+                    <span className="home-settings-nav-meta">
+                      <span className="home-settings-item-value">{sectionsSummary}</span>
+                      <span className="home-settings-nav-arrow" aria-hidden="true">
+                        →
+                      </span>
+                    </span>
+                  </button>
+                </li>
+                <li className="home-settings-item">
+                  <button
+                    type="button"
+                    className="home-settings-nav-button"
+                    onClick={() => setStep('note-cards')}
+                  >
+                    <span className="home-settings-item-label">Note cards</span>
+                    <span className="home-settings-nav-meta">
+                      <span className="home-settings-item-value">
+                        {selectedNoteCardDisplay.label}
+                      </span>
+                      <span className="home-settings-nav-arrow" aria-hidden="true">
+                        →
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+
+              <div className="home-settings-divider" aria-hidden="true" />
+
+              <h3 className="home-settings-subheading">Floating bar</h3>
+
+              <ul className="home-settings-list home-settings-list--grouped">
+                <li className="home-settings-item">
+                  <button
+                    type="button"
+                    className="home-settings-nav-button"
+                    onClick={() => setStep('floating-bar-color')}
+                  >
+                    <span className="home-settings-item-label">Floating bar colour</span>
+                    <span className="home-settings-nav-meta">
+                      <span className="home-settings-item-value">{selectedFloatingBarColor}</span>
+                      <span className="home-settings-nav-arrow" aria-hidden="true">
+                        →
+                      </span>
+                    </span>
+                  </button>
+                </li>
+                <li className="home-settings-item">
+                  <button
+                    type="button"
+                    className="home-settings-nav-button"
+                    onClick={() => setStep('floating-bar-tools')}
+                  >
+                    <span className="home-settings-item-label">Reorder tools</span>
+                    <span className="home-settings-nav-meta">
+                      <span className="home-settings-nav-arrow" aria-hidden="true">
+                        →
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+
+              <div className="home-settings-divider" aria-hidden="true" />
+
+              <h3 className="home-settings-subheading">More settings</h3>
+
+              <ul className="home-settings-list home-settings-list--grouped home-settings-list--actions">
+                <li className="home-settings-item">
+                  <button
+                    type="button"
+                    className="home-settings-action-button"
+                    onClick={handleExport}
+                    disabled={backupBusy}
+                  >
+                    <span className="home-settings-item-label">Backup data</span>
+                  </button>
+                </li>
+                <li className="home-settings-item">
+                  <button
+                    type="button"
+                    className="home-settings-action-button"
+                    onClick={handleImportClick}
+                    disabled={backupBusy}
+                  >
+                    <span className="home-settings-item-label">Import data</span>
+                  </button>
+                </li>
+              </ul>
+
+              {backupMessage && (
+                <p
+                  className={`home-settings-backup-message home-settings-backup-message--${backupMessage.tone}`}
+                  role="status"
                 >
-                  <span className="home-settings-item-label">Quick bar</span>
-                  <span className="home-settings-nav-meta">
-                    <span className="home-settings-item-value">{selectedQuickBar.label}</span>
-                    <span className="home-settings-nav-arrow" aria-hidden="true">
-                      →
-                    </span>
-                  </span>
-                </button>
-              </li>
-              <li className="home-settings-item">
-                <button
-                  type="button"
-                  className="home-settings-nav-button"
-                  onClick={() => setStep('sections')}
-                >
-                  <span className="home-settings-item-label">Sections</span>
-                  <span className="home-settings-nav-meta">
-                    <span className="home-settings-item-value">{sectionsSummary}</span>
-                    <span className="home-settings-nav-arrow" aria-hidden="true">
-                      →
-                    </span>
-                  </span>
-                </button>
-              </li>
-              <li className="home-settings-item">
-                <button
-                  type="button"
-                  className="home-settings-nav-button"
-                  onClick={() => setStep('note-cards')}
-                >
-                  <span className="home-settings-item-label">Note cards</span>
-                  <span className="home-settings-nav-meta">
-                    <span className="home-settings-item-value">
-                      {selectedNoteCardDisplay.label}
-                    </span>
-                    <span className="home-settings-nav-arrow" aria-hidden="true">
-                      →
-                    </span>
-                  </span>
-                </button>
-              </li>
-            </ul>
+                  {backupMessage.text}
+                </p>
+              )}
+
+              <input
+                ref={importInputRef}
+                type="file"
+                className="home-settings-import-input"
+                accept="application/json,.json"
+                onChange={handleImportFileChange}
+                tabIndex={-1}
+                aria-hidden="true"
+              />
+            </div>
           ) : step === 'quick-bar' ? (
             <ul
               key="quick-bar"
@@ -203,7 +372,54 @@ export default function HomeSettings({
                 )
               })}
             </ul>
-          ) : (
+          ) : step === 'floating-bar-color' ? (
+            <ul
+              key="floating-bar-color"
+              className="home-settings-list home-settings-step"
+              role="listbox"
+              aria-label="Floating bar colour"
+            >
+              {FLOATING_BAR_COLOR_OPTIONS.map((option) => {
+                const selected = option.id === floatingBarColor
+
+                return (
+                  <li key={option.id} className="home-settings-item">
+                    <button
+                      type="button"
+                      className={`home-settings-option home-settings-color-option${selected ? ' home-settings-option--selected' : ''}`}
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => onFloatingBarColorChange(option.id)}
+                    >
+                      <span className="home-settings-color-preview">
+                        <span
+                          className="home-settings-color-swatch"
+                          style={{ background: option.background, color: option.foreground }}
+                          aria-hidden="true"
+                        >
+                          B
+                        </span>
+                        <span className="home-settings-item-label">{option.label}</span>
+                      </span>
+                      {selected && (
+                        <span className="home-settings-check" aria-hidden="true">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : step === 'floating-bar-tools' ? (
+            <div key="floating-bar-tools" className="home-settings-step">
+              <FloatingBarToolsReorder
+                tools={floatingBarTools}
+                colorId={floatingBarColor}
+                onToolsChange={onFloatingBarToolsChange}
+              />
+            </div>
+          ) : step === 'note-cards' ? (
             <ul
               key="note-cards"
               className="home-settings-list home-settings-step"
@@ -233,7 +449,7 @@ export default function HomeSettings({
                 )
               })}
             </ul>
-          )}
+          ) : null}
         </div>
       </div>
     </>

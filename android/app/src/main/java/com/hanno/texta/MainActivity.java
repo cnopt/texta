@@ -1,4 +1,4 @@
-package com.hanno.yxa;
+package com.hanno.texta;
 
 import com.getcapacitor.BridgeActivity;
 

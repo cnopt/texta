@@ -1,6 +1,6 @@
 {
-  "appId": "com.hanno.yxa",
-  "appName": "yxa-text",
+  "appId": "com.hanno.texta",
+  "appName": "Texta",
   "webDir": "dist",
   "plugins": {
     "Keyboard": {

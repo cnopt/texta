@@ -22,7 +22,7 @@
   z-index: 201;
   display: flex;
   flex-direction: column;
-  height: 75vh;
+  height: 80vh;
   min-height: 480px;
   padding: 24px 20px 32px;
   border-radius: 16px 16px 0 0;
@@ -217,4 +217,101 @@
 .home-settings-checkbox:focus-visible {
   outline: 2px solid #377aff;
   outline-offset: 2px;
+}
+
+.home-settings-divider {
+  height: 1px;
+  margin: 12px 0 20px;
+  background: #292929;
+}
+
+.home-settings-subheading {
+  margin: 8px 0 4px;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: -0.1px;
+  color: #6e6e6e;
+  text-transform: none;
+}
+
+.home-settings-list--grouped,
+.home-settings-list--actions {
+  padding-top: 0;
+}
+
+.home-settings-action-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-settings-action-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.home-settings-action-button:hover:not(:disabled) .home-settings-item-label {
+  color: #ebebeb;
+}
+
+.home-settings-backup-message {
+  margin: 8px 4px 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: -0.1px;
+}
+
+.home-settings-backup-message--success {
+  color: #9a9a9a;
+}
+
+.home-settings-backup-message--error {
+  color: #ff6b6b;
+}
+
+.home-settings-import-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.home-settings-color-option {
+  align-items: center;
+}
+
+.home-settings-color-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.home-settings-color-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
 }
