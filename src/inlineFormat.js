@@ -897,6 +897,37 @@ export function deleteTallyPrefix(text, caret) {
 }
 
 /**
+ * If the caret is at the start of a line whose previous line is a tally,
+ * return that tally line's start. Otherwise null.
+ */
+export function getTallyLineBefore(text, caret) {
+  const lineStart = getLineStart(text, caret)
+  if (caret !== lineStart || lineStart === 0) return null
+
+  const prevLineStart = getLineStart(text, lineStart - 1)
+  const prevLineText = text.slice(prevLineStart, lineStart - 1)
+  return isTallyLine(prevLineText) ? prevLineStart : null
+}
+
+/** Remove a tally line, including the newline after it when present. */
+export function deleteTallyLine(text, lineFrom) {
+  const lineStart = getLineStart(text, lineFrom)
+  const lineEnd = text.indexOf('\n', lineStart)
+  const contentEnd = lineEnd === -1 ? text.length : lineEnd
+  const lineText = text.slice(lineStart, contentEnd)
+
+  if (!isTallyLine(lineText)) return null
+
+  const to = lineEnd === -1 ? text.length : lineEnd + 1
+
+  return {
+    text: text.slice(0, lineStart) + text.slice(to),
+    selectionStart: lineStart,
+    selectionEnd: lineStart,
+  }
+}
+
+/**
  * On a todo line, insert a newline and start the next line as an unchecked todo
  * item. Returns null when the caret is not on todo item text.
  */

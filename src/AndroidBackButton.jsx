@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { App } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { runEditorLeaveHandler } from './editorLeave.js'
+import { runNotebookHomeBackHandler } from './notebookHomeBack.js'
 
 /**
  * Overrides Android's hardware back button:
@@ -34,6 +35,7 @@ export default function AndroidBackButton() {
       }
 
       if (/^\/notebook\/[^/]+\/?$/.test(pathname)) {
+        if (runNotebookHomeBackHandler()) return
         navigate('/')
         return
       }

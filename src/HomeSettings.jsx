@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { Dialog } from '@capawesome/capacitor-dialog'
+import { Toast, ToastDuration } from '@capawesome/capacitor-toast'
 import {
   exportBackup,
   importBackupFromFile,
@@ -9,7 +11,7 @@ import {
   FLOATING_BAR_COLOR_OPTIONS,
   getFloatingBarColorLabel,
 } from './floatingBarSettings.js'
-import { NOTE_CARD_DISPLAY_MODE_LABELS } from './homeSettings.js'
+import { NOTE_CARD_DISPLAY_MODE_LABELS, THEME_LABELS } from './homeSettings.js'
 import { useBottomSheet } from './useBottomSheet.js'
 import './HomeSettings.css'
 
@@ -28,6 +30,19 @@ const NOTE_CARD_DISPLAY_CHOICES = [
   { id: 'dynamic', label: NOTE_CARD_DISPLAY_MODE_LABELS.dynamic },
 ]
 
+const THEME_CHOICES = [
+  { id: 'dark', label: THEME_LABELS.dark },
+  { id: 'light', label: THEME_LABELS.light },
+  { id: 'paper', label: THEME_LABELS.paper },
+]
+
+function showBackupToast(text) {
+  return Toast.show({
+    text,
+    duration: ToastDuration.Short,
+  })
+}
+
 export default function HomeSettings({
   isOpen,
   onClose,
@@ -37,6 +52,8 @@ export default function HomeSettings({
   onSectionChange,
   noteCardDisplayMode,
   onNoteCardDisplayModeChange,
+  theme,
+  onThemeChange,
   floatingBarColor,
   onFloatingBarColorChange,
   floatingBarTools,
@@ -46,7 +63,6 @@ export default function HomeSettings({
   const { render, active } = useBottomSheet(isOpen)
   const [step, setStep] = useState('main')
   const [backupBusy, setBackupBusy] = useState(false)
-  const [backupMessage, setBackupMessage] = useState(null)
   const importInputRef = useRef(null)
 
   useEffect(() => {
@@ -54,7 +70,6 @@ export default function HomeSettings({
 
     const timer = setTimeout(() => {
       setStep('main')
-      setBackupMessage(null)
       setBackupBusy(false)
     }, 300)
     return () => clearTimeout(timer)
@@ -67,6 +82,7 @@ export default function HomeSettings({
       step === 'quick-bar' ||
       step === 'sections' ||
       step === 'note-cards' ||
+      step === 'theme' ||
       step === 'floating-bar-color' ||
       step === 'floating-bar-tools'
     ) {
@@ -81,17 +97,13 @@ export default function HomeSettings({
     if (backupBusy) return
 
     setBackupBusy(true)
-    setBackupMessage(null)
 
     try {
       await exportBackup()
-      setBackupMessage({ tone: 'success', text: 'Settings exported.' })
+      await showBackupToast('Settings exported.')
     } catch (error) {
       if (isAbortError(error)) return
-      setBackupMessage({
-        tone: 'error',
-        text: error?.message || 'Export failed.',
-      })
+      await showBackupToast(error?.message || 'Export failed.')
     } finally {
       setBackupBusy(false)
     }
@@ -99,7 +111,6 @@ export default function HomeSettings({
 
   function handleImportClick() {
     if (backupBusy) return
-    setBackupMessage(null)
     importInputRef.current?.click()
   }
 
@@ -108,19 +119,24 @@ export default function HomeSettings({
     event.target.value = ''
     if (!file || backupBusy) return
 
+    const { value } = await Dialog.confirm({
+      title: 'Import data?',
+      message:
+        'This will replace your current notebooks, notes, tags, and settings.',
+      okButtonTitle: 'Import',
+      cancelButtonTitle: 'Cancel',
+    })
+    if (!value) return
+
     setBackupBusy(true)
-    setBackupMessage(null)
 
     try {
       await importBackupFromFile(file)
       await onDataImported?.()
-      setBackupMessage({ tone: 'success', text: 'Settings imported.' })
+      await showBackupToast('Settings imported.')
     } catch (error) {
       if (isAbortError(error)) return
-      setBackupMessage({
-        tone: 'error',
-        text: error?.message || 'Import failed.',
-      })
+      await showBackupToast(error?.message || 'Import failed.')
     } finally {
       setBackupBusy(false)
     }
@@ -132,6 +148,9 @@ export default function HomeSettings({
   const selectedNoteCardDisplay =
     NOTE_CARD_DISPLAY_CHOICES.find((choice) => choice.id === noteCardDisplayMode) ??
     NOTE_CARD_DISPLAY_CHOICES[0]
+
+  const selectedTheme =
+    THEME_CHOICES.find((choice) => choice.id === theme) ?? THEME_CHOICES[0]
 
   const visibleSectionLabels = SECTION_CHOICES.filter((choice) => sections[choice.id]).map(
     (choice) => choice.label,
@@ -177,17 +196,41 @@ export default function HomeSettings({
                 ? 'Sections'
                 : step === 'note-cards'
                   ? 'Note cards'
-                  : step === 'floating-bar-color'
-                    ? 'Floating bar colour'
-                    : step === 'floating-bar-tools'
-                      ? 'Reorder tools'
-                      : 'Settings'}
+                  : step === 'theme'
+                    ? 'Theme'
+                    : step === 'floating-bar-color'
+                      ? 'Floating bar colour'
+                      : step === 'floating-bar-tools'
+                        ? 'Reorder tools'
+                        : 'Settings'}
           </h2>
         </header>
 
         <div className="home-settings-body">
           {step === 'main' ? (
             <div key="main" className="home-settings-step">
+              <h3 className="home-settings-subheading">Appearance</h3>
+
+              <ul className="home-settings-list home-settings-list--grouped">
+                <li className="home-settings-item">
+                  <button
+                    type="button"
+                    className="home-settings-nav-button"
+                    onClick={() => setStep('theme')}
+                  >
+                    <span className="home-settings-item-label">Theme</span>
+                    <span className="home-settings-nav-meta">
+                      <span className="home-settings-item-value">{selectedTheme.label}</span>
+                      <span className="home-settings-nav-arrow" aria-hidden="true">
+                        →
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              </ul>
+
+              <div className="home-settings-divider" aria-hidden="true" />
+
               <h3 className="home-settings-subheading">Customise homepage</h3>
 
               <ul className="home-settings-list home-settings-list--grouped">
@@ -302,15 +345,6 @@ export default function HomeSettings({
                   </button>
                 </li>
               </ul>
-
-              {backupMessage && (
-                <p
-                  className={`home-settings-backup-message home-settings-backup-message--${backupMessage.tone}`}
-                  role="status"
-                >
-                  {backupMessage.text}
-                </p>
-              )}
 
               <input
                 ref={importInputRef}
@@ -437,6 +471,36 @@ export default function HomeSettings({
                       role="option"
                       aria-selected={selected}
                       onClick={() => onNoteCardDisplayModeChange(choice.id)}
+                    >
+                      <span className="home-settings-item-label">{choice.label}</span>
+                      {selected && (
+                        <span className="home-settings-check" aria-hidden="true">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : step === 'theme' ? (
+            <ul
+              key="theme"
+              className="home-settings-list home-settings-step"
+              role="listbox"
+              aria-label="Theme"
+            >
+              {THEME_CHOICES.map((choice) => {
+                const selected = choice.id === theme
+
+                return (
+                  <li key={choice.id} className="home-settings-item">
+                    <button
+                      type="button"
+                      className={`home-settings-option${selected ? ' home-settings-option--selected' : ''}`}
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => onThemeChange(choice.id)}
                     >
                       <span className="home-settings-item-label">{choice.label}</span>
                       {selected && (

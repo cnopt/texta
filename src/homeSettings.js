@@ -5,6 +5,7 @@ import {
   normalizeFloatingBarColor,
   normalizeFloatingBarTools,
 } from './floatingBarSettings.js'
+import { THEME_OPTIONS, normalizeTheme } from './theme.js'
 
 const FILENAME = 'homeSettings.json'
 
@@ -19,6 +20,12 @@ const NOTE_CARD_DISPLAY_MODE_LABELS = {
   dynamic: 'Dynamic',
 }
 
+const THEME_LABELS = {
+  dark: 'Dark',
+  light: 'Light',
+  paper: 'Paper',
+}
+
 const DEFAULT_SETTINGS = {
   quickBar: 'search',
   sections: {
@@ -26,6 +33,7 @@ const DEFAULT_SETTINGS = {
     notes: true,
   },
   noteCardDisplayMode: 'fixed',
+  theme: 'dark',
   floatingBarColor: DEFAULT_FLOATING_BAR_COLOR,
   floatingBarTools: createDefaultFloatingBarTools(),
 }
@@ -52,6 +60,7 @@ function normalizeSettings(settings) {
     quickBar: normalizeQuickBar(settings?.quickBar),
     sections: normalizeSections(settings?.sections),
     noteCardDisplayMode: normalizeNoteCardDisplayMode(settings?.noteCardDisplayMode),
+    theme: normalizeTheme(settings?.theme),
     floatingBarColor: normalizeFloatingBarColor(settings?.floatingBarColor),
     floatingBarTools: normalizeFloatingBarTools(settings?.floatingBarTools),
   }
@@ -88,4 +97,6 @@ export {
   SECTION_IDS,
   NOTE_CARD_DISPLAY_MODES,
   NOTE_CARD_DISPLAY_MODE_LABELS,
+  THEME_OPTIONS,
+  THEME_LABELS,
 }

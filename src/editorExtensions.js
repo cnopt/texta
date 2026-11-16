@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
-import { EditorSelection, EditorState } from '@codemirror/state'
+import { EditorSelection, EditorState, StateEffect, StateField } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view'
 import {
   CALLOUT_PREFIX,
@@ -13,9 +13,12 @@ import {
   parseInlineFormats,
   parseTallyValue,
   setTallyValue,
+  deleteTallyLine,
+  getTallyLineBefore,
   toggleTodoCancelled,
   toggleTodoComplete,
 } from './inlineFormat.js'
+import { collectLineTagMatches } from './customTags.js'
 import { getTagStyleString } from './tagStyles.js'
 
 const isAndroid =
@@ -135,6 +138,148 @@ export function ensureTallyTrailingLine() {
   })
 }
 
+/** Document position of the selected tally line start, or null. */
+export const setSelectedTally = StateEffect.define()
+
+export const selectedTallyField = StateField.define({
+  create() {
+    return null
+  },
+  update(value, tr) {
+    let next = value
+    let explicitlySet = false
+
+    for (const effect of tr.effects) {
+      if (effect.is(setSelectedTally)) {
+        next = effect.value
+        explicitlySet = true
+      }
+    }
+
+    if (next == null) return null
+
+    if (tr.docChanged) {
+      next = tr.changes.mapPos(next, 1)
+    }
+
+    const line = tr.newDoc.lineAt(next)
+    if (!isTallyLine(line.text)) return null
+    next = line.from
+
+    if (!explicitlySet && tr.selection) {
+      const after = line.to < tr.newDoc.length ? line.to + 1 : line.to
+      if (tr.newSelection.main.head !== after) return null
+    }
+
+    return next
+  },
+})
+
+function caretAfterTally(doc, line) {
+  return line.to < doc.length ? line.to + 1 : line.to
+}
+
+/** Collapses Backspace keydown + IME delete.backward from the same press. */
+let tallyBackspaceLock = false
+
+function armTallyBackspaceLock() {
+  tallyBackspaceLock = true
+  setTimeout(() => {
+    tallyBackspaceLock = false
+  }, 50)
+}
+
+function selectTallyAt(view, lineFrom) {
+  const line = view.state.doc.lineAt(lineFrom)
+  const caret = caretAfterTally(view.state.doc, line)
+  armTallyBackspaceLock()
+  lightHaptic()
+  view.dispatch({
+    ...(view.state.selection.main.head === caret
+      ? {}
+      : { selection: EditorSelection.cursor(caret) }),
+    effects: setSelectedTally.of(line.from),
+    scrollIntoView: true,
+  })
+}
+
+function removeTallyAt(view, lineFrom) {
+  const doc = view.state.doc.toString()
+  const result = deleteTallyLine(doc, lineFrom)
+  if (!result) return false
+
+  armTallyBackspaceLock()
+  lightHaptic()
+  view.dispatch({
+    changes: toMinimalChange(doc, result.text),
+    selection: EditorSelection.cursor(result.selectionStart),
+    effects: setSelectedTally.of(null),
+    scrollIntoView: true,
+  })
+  return true
+}
+
+/**
+ * Backspace on the line after a tally selects it; a second backspace deletes it.
+ * Returns true when the keypress was handled.
+ */
+export function handleTallyBackspace(view) {
+  if (tallyBackspaceLock) return true
+
+  const { from, to } = view.state.selection.main
+  if (from !== to) return false
+
+  const doc = view.state.doc.toString()
+  const tallyFrom = getTallyLineBefore(doc, from)
+  if (tallyFrom == null) return false
+
+  if (view.state.field(selectedTallyField) === tallyFrom) {
+    return removeTallyAt(view, tallyFrom)
+  }
+
+  selectTallyAt(view, tallyFrom)
+  return true
+}
+
+/**
+ * Android IME may delete the newline after a tally without firing the Backspace
+ * keymap. Convert that edit into select-or-delete instead of merging into the widget.
+ */
+export function interceptTallyBackspace() {
+  return EditorState.transactionFilter.of((tr) => {
+    if (!tr.docChanged || !tr.isUserEvent('delete.backward')) return tr
+
+    if (tallyBackspaceLock) {
+      return { selection: tr.startState.selection }
+    }
+
+    const sel = tr.startState.selection.main
+    if (sel.from !== sel.to) return tr
+
+    const doc = tr.startState.doc.toString()
+    const tallyFrom = getTallyLineBefore(doc, sel.from)
+    if (tallyFrom == null) return tr
+
+    armTallyBackspaceLock()
+    lightHaptic()
+
+    if (tr.startState.field(selectedTallyField) === tallyFrom) {
+      const result = deleteTallyLine(doc, tallyFrom)
+      if (!result) return tr
+      return {
+        changes: toMinimalChange(doc, result.text),
+        selection: EditorSelection.cursor(result.selectionStart),
+        effects: setSelectedTally.of(null),
+      }
+    }
+
+    return {
+      effects: setSelectedTally.of(tallyFrom),
+      selection: EditorSelection.cursor(sel.from),
+    }
+  })
+}
+
 const FORMAT_CLASS_NAMES = {
   bold: 'cm-inline-bold',
   italic: 'cm-inline-italic',
@@ -152,6 +297,7 @@ const TODO_CANCELLED_LINE_DECORATION = Decoration.line({ class: 'cm-todo-cancell
 const CALLOUT_LINE_DECORATION = Decoration.line({ class: 'cm-callout' })
 const INFO_LINE_DECORATION = Decoration.line({ class: 'cm-info' })
 const TALLY_LINE_DECORATION = Decoration.line({ class: 'cm-tally' })
+const TALLY_SELECTED_LINE_DECORATION = Decoration.line({ class: 'cm-tally-selected' })
 const TODO_PREFIX_LENGTH = TODO_PREFIX.length
 const TODO_COMPLETE_PREFIX_LENGTH = TODO_COMPLETE_PREFIX.length
 const TODO_CANCELLED_PREFIX_LENGTH = TODO_CANCELLED_PREFIX.length
@@ -160,6 +306,7 @@ const CALLOUT_PREFIX_LENGTH = CALLOUT_PREFIX.length
 const INFO_PREFIX_LENGTH = INFO_PREFIX.length
 const TALLY_PREFIX_LENGTH = TALLY_PREFIX.length
 const TODO_LONG_PRESS_MS = 500
+const TALLY_LONG_PRESS_MS = 500
 
 /** Survives widget re-mounts so pointerup after a long-press does not complete the item. */
 let suppressedTodoTapPointerId = null
@@ -335,17 +482,19 @@ function isTallyLine(lineText) {
 }
 
 class TallyWidget extends WidgetType {
-  constructor(value, lineFrom) {
+  constructor(value, lineFrom, selected) {
     super()
     this.value = value
     this.lineFrom = lineFrom
+    this.selected = selected
   }
 
   eq(other) {
     return (
       other instanceof TallyWidget &&
       other.value === this.value &&
-      other.lineFrom === this.lineFrom
+      other.lineFrom === this.lineFrom &&
+      other.selected === this.selected
     )
   }
 
@@ -406,7 +555,51 @@ class TallyWidget extends WidgetType {
       adjust(1)
     })
 
-    root.append(minus, value, plus)
+    if (this.selected) {
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'cm-tally-button cm-tally-delete'
+      remove.setAttribute('aria-label', 'Delete tally')
+      remove.textContent = '\u00d7'
+      remove.addEventListener('pointerdown', onButtonPointerDown)
+      remove.addEventListener('click', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        const line = view.state.doc.lineAt(widget.lineFrom)
+        removeTallyAt(view, line.from)
+      })
+      root.append(minus, value, remove)
+    } else {
+      let longPressTimer = null
+
+      function clearLongPress() {
+        if (longPressTimer) {
+          clearTimeout(longPressTimer)
+          longPressTimer = null
+        }
+      }
+
+      value.addEventListener('pointerdown', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        longPressTimer = setTimeout(() => {
+          const line = view.state.doc.lineAt(widget.lineFrom)
+          selectTallyAt(view, line.from)
+        }, TALLY_LONG_PRESS_MS)
+      })
+      value.addEventListener('pointerup', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        clearLongPress()
+      })
+      value.addEventListener('pointercancel', clearLongPress)
+      value.addEventListener('pointerleave', clearLongPress)
+      value.addEventListener('contextmenu', (event) => {
+        event.preventDefault()
+      })
+      root.append(minus, value, plus)
+    }
+
     return root
   }
 
@@ -415,7 +608,7 @@ class TallyWidget extends WidgetType {
   }
 }
 
-function showTallyWidget(line, showMarkers, decorations, hidden) {
+function showTallyWidget(line, showMarkers, decorations, hidden, selected) {
   if (showMarkers) {
     hideLinePrefix(line, TALLY_PREFIX_LENGTH, true, decorations, hidden)
     return
@@ -423,7 +616,7 @@ function showTallyWidget(line, showMarkers, decorations, hidden) {
 
   const value = parseTallyValue(line.text)
   const range = Decoration.replace({
-    widget: new TallyWidget(value, line.from),
+    widget: new TallyWidget(value, line.from, selected),
   }).range(line.from, line.to)
   decorations.push(range)
   hidden.push(range)
@@ -469,25 +662,6 @@ function showTodoPrefix(line, state, showMarkers, decorations, hidden) {
   hidden.push(range)
 }
 
-function findLineTagMatch(line, tags) {
-  const sortedTags = [...tags].sort((a, b) => b.trigger.length - a.trigger.length)
-  let earliest = null
-
-  for (const tag of sortedTags) {
-    const pattern = `${tag.trigger} `
-    const index = tag.caseSensitive
-      ? line.indexOf(pattern)
-      : line.toLowerCase().indexOf(pattern.toLowerCase())
-    if (index === -1) continue
-
-    if (!earliest || index < earliest.index) {
-      earliest = { tag, index }
-    }
-  }
-
-  return earliest
-}
-
 function getFormatClassName(segment) {
   const classNames = []
   const heading = HEADING_FORMATS.find((format) => segment[format])
@@ -503,7 +677,14 @@ function getFormatClassName(segment) {
 /**
  * Formats never span a line break, so each line is parsed independently.
  */
-function collectLineDecorations(line, customTags, showMarkers, decorations, hidden) {
+function collectLineDecorations(
+  line,
+  customTags,
+  showMarkers,
+  decorations,
+  hidden,
+  selectedTallyFrom,
+) {
   if (!line.length) return
 
   if (isCompleteTodoLine(line.text)) {
@@ -528,23 +709,26 @@ function collectLineDecorations(line, customTags, showMarkers, decorations, hidd
   }
 
   if (isTallyLine(line.text)) {
+    const selected = selectedTallyFrom === line.from
     decorations.push(TALLY_LINE_DECORATION.range(line.from))
-    showTallyWidget(line, showMarkers, decorations, hidden)
+    if (selected) {
+      decorations.push(TALLY_SELECTED_LINE_DECORATION.range(line.from))
+    }
+    showTallyWidget(line, showMarkers, decorations, hidden, selected)
     // The widget owns the full line; skip tag/inline decorations that would overlap.
     if (!showMarkers) return
   }
 
-  const tagMatch = findLineTagMatch(line.text, customTags)
-  if (tagMatch) {
+  for (const tagMatch of collectLineTagMatches(line.text, customTags)) {
     const style = getTagStyleString(tagMatch.tag)
-    if (style) {
-      decorations.push(
-        Decoration.mark({ attributes: { style } }).range(
-          line.from + tagMatch.index,
-          line.to,
-        ),
-      )
-    }
+    if (!style) continue
+
+    decorations.push(
+      Decoration.mark({ attributes: { style } }).range(
+        line.from + tagMatch.from,
+        line.from + tagMatch.to,
+      ),
+    )
   }
 
   for (const segment of parseInlineFormats(line.text)) {
@@ -572,13 +756,21 @@ function collectLineDecorations(line, customTags, showMarkers, decorations, hidd
 function buildDecorations(view, customTags, showMarkers) {
   const decorations = []
   const hidden = []
+  const selectedTallyFrom = view.state.field(selectedTallyField, false)
 
   for (const { from, to } of view.visibleRanges) {
     let pos = from
 
     while (pos <= to) {
       const line = view.state.doc.lineAt(pos)
-      collectLineDecorations(line, customTags, showMarkers, decorations, hidden)
+      collectLineDecorations(
+        line,
+        customTags,
+        showMarkers,
+        decorations,
+        hidden,
+        selectedTallyFrom,
+      )
       pos = line.to + 1
     }
   }
@@ -603,7 +795,12 @@ export function formattingDecorations(customTags, showMarkers) {
       }
 
       update(update) {
-        if (update.docChanged || update.viewportChanged) {
+        if (
+          update.docChanged ||
+          update.viewportChanged ||
+          update.state.field(selectedTallyField, false) !==
+            update.startState.field(selectedTallyField, false)
+        ) {
           this.build(update.view)
         }
       }
@@ -631,13 +828,36 @@ export function createEditorTheme({
   letterSpacing,
   textAlign = 'left',
   todoSpacing = false,
+  colorScheme = 'dark',
 }) {
+  const isPaper = colorScheme === 'paper'
+  const isLight = colorScheme === 'light' || isPaper
+  const textColor = isPaper ? '#3d3424' : isLight ? '#1c1c1c' : '#ebebeb'
+  const placeholderColor = isPaper ? '#8a7b62' : isLight ? '#8a8a8a' : '#9a9a9a'
+  const infoBackground = isPaper ? '#e4d6b0' : isLight ? '#e4eaf2' : '#1a2744'
+  const infoColor = isPaper ? '#4d5c52' : isLight ? '#4a6a8c' : '#6b8cb0'
+  const tallyValueColor = isPaper ? '#3f5348' : isLight ? '#3d5a7a' : '#8eafd0'
+  const tallyButtonBackground = isPaper
+    ? 'rgba(77, 92, 82, 0.14)'
+    : isLight
+      ? 'rgba(74, 106, 140, 0.12)'
+      : 'rgba(107, 140, 176, 0.16)'
+  const tallyButtonActiveBackground = isPaper
+    ? 'rgba(77, 92, 82, 0.24)'
+    : isLight
+      ? 'rgba(74, 106, 140, 0.22)'
+      : 'rgba(107, 140, 176, 0.28)'
+  const tallyButtonActiveColor = isPaper ? '#2f4038' : isLight ? '#2f4a68' : '#b7d0e8'
+  const selectionBackground = isLight
+    ? 'rgba(55, 122, 255, 0.28)'
+    : 'rgba(55, 122, 255, 0.35)'
+
   return EditorView.theme(
     {
       '&': {
         height: '100%',
         backgroundColor: 'transparent',
-        color: '#ebebeb',
+        color: textColor,
       },
       '&.cm-focused': {
         outline: 'none',
@@ -652,7 +872,7 @@ export function createEditorTheme({
       },
       '.cm-content': {
         padding: '0 0 1.5rem',
-        caretColor: '#ebebeb',
+        caretColor: textColor,
       },
       '.cm-line': {
         padding: '0',
@@ -693,8 +913,8 @@ export function createEditorTheme({
       },
       '.cm-line.cm-info': {
         position: 'relative',
-        backgroundColor: '#1a2744',
-        color: '#6b8cb0',
+        backgroundColor: infoBackground,
+        color: infoColor,
         margin: '6px 12px',
         padding: '8px 12px 8px 40px',
         borderRadius: '6px',
@@ -716,12 +936,16 @@ export function createEditorTheme({
         display: 'flex',
         alignItems: 'stretch',
         position: 'relative',
-        backgroundColor: '#1a2744',
-        color: '#6b8cb0',
+        backgroundColor: infoBackground,
+        color: infoColor,
         margin: '10px 20px',
         padding: '0',
         borderRadius: '6px',
         overflow: 'hidden',
+      },
+      '.cm-line.cm-tally.cm-tally-selected': {
+        outline: '2px solid #e05555',
+        outlineOffset: '2px',
       },
       '.cm-tally-widget': {
         display: 'flex',
@@ -743,7 +967,7 @@ export function createEditorTheme({
         textAlign: 'center',
         fontVariantNumeric: 'tabular-nums',
         fontWeight: '600',
-        color: '#8eafd0',
+        color: tallyValueColor,
       },
       '.cm-tally-button': {
         display: 'inline-flex',
@@ -755,8 +979,8 @@ export function createEditorTheme({
         padding: '0',
         border: 'none',
         borderRadius: '0',
-        background: 'rgba(107, 140, 176, 0.16)',
-        color: '#8eafd0',
+        background: tallyButtonBackground,
+        color: tallyValueColor,
         fontSize: '1.1em',
         fontWeight: '600',
         lineHeight: '1',
@@ -765,16 +989,25 @@ export function createEditorTheme({
         touchAction: 'manipulation',
       },
       '.cm-tally-button:active': {
-        background: 'rgba(107, 140, 176, 0.28)',
-        color: '#b7d0e8',
+        background: tallyButtonActiveBackground,
+        color: tallyButtonActiveColor,
+      },
+      '.cm-tally-delete': {
+        background: 'rgba(224, 85, 85, 0.18)',
+        color: '#e05555',
+        fontSize: '1.3em',
+      },
+      '.cm-tally-delete:active': {
+        background: 'rgba(224, 85, 85, 0.32)',
+        color: '#ff6b6b',
       },
       '.cm-content ::selection': {
-        backgroundColor: 'rgba(55, 122, 255, 0.35)',
+        backgroundColor: selectionBackground,
       },
       '.cm-placeholder': {
-        color: '#9a9a9a',
+        color: placeholderColor,
       },
     },
-    { dark: true },
+    { dark: !isLight },
   )
 }

@@ -16,3 +16,9 @@ project(':capacitor-keyboard').projectDir = new File('../node_modules/@capacitor
 
 include ':capacitor-share'
 project(':capacitor-share').projectDir = new File('../node_modules/@capacitor/share/android')
+
+include ':capawesome-capacitor-dialog'
+project(':capawesome-capacitor-dialog').projectDir = new File('../node_modules/@capawesome/capacitor-dialog/android')
+
+include ':capawesome-capacitor-toast'
+project(':capawesome-capacitor-toast').projectDir = new File('../node_modules/@capawesome/capacitor-toast/android')

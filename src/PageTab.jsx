@@ -1,4 +1,8 @@
+import { useEffect, useRef } from 'react'
 import './PageTab.css'
+
+const LONG_PRESS_MS = 500
+const MOVE_THRESHOLD_PX = 10
 
 function PageIcon() {
   return (
@@ -40,8 +44,87 @@ export default function PageTab({
   className = '',
   style,
   onClick,
+  onLongPress,
 }) {
   const isCreate = variant === 'create'
+  const longPressTimerRef = useRef(null)
+  const longPressTriggeredRef = useRef(false)
+  const startPosRef = useRef({ x: 0, y: 0 })
+  const onLongPressRef = useRef(onLongPress)
+  const trackingRef = useRef(null)
+
+  onLongPressRef.current = onLongPress
+
+  if (trackingRef.current === null) {
+    const stopTracking = () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current)
+        longPressTimerRef.current = null
+      }
+
+      window.removeEventListener('pointermove', tracking.onMove)
+      window.removeEventListener('pointerup', tracking.onUp)
+      window.removeEventListener('pointercancel', tracking.onUp)
+    }
+
+    const tracking = {
+      stop: stopTracking,
+      onMove(event) {
+        if (!longPressTimerRef.current) return
+
+        const dx = event.clientX - startPosRef.current.x
+        const dy = event.clientY - startPosRef.current.y
+        if (dx * dx + dy * dy > MOVE_THRESHOLD_PX * MOVE_THRESHOLD_PX) {
+          stopTracking()
+        }
+      },
+      onUp() {
+        stopTracking()
+      },
+    }
+
+    trackingRef.current = tracking
+  }
+
+  useEffect(() => () => trackingRef.current?.stop(), [])
+
+  function handlePointerDown(event) {
+    if (!onLongPress || isCreate) return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+
+    const tracking = trackingRef.current
+    longPressTriggeredRef.current = false
+    startPosRef.current = { x: event.clientX, y: event.clientY }
+    tracking.stop()
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null
+      longPressTriggeredRef.current = true
+      window.removeEventListener('pointermove', tracking.onMove)
+      window.removeEventListener('pointerup', tracking.onUp)
+      window.removeEventListener('pointercancel', tracking.onUp)
+      onLongPressRef.current?.()
+    }, LONG_PRESS_MS)
+
+    window.addEventListener('pointermove', tracking.onMove)
+    window.addEventListener('pointerup', tracking.onUp)
+    window.addEventListener('pointercancel', tracking.onUp)
+  }
+
+  function handleClick(event) {
+    if (longPressTriggeredRef.current) {
+      event.preventDefault()
+      event.stopPropagation()
+      longPressTriggeredRef.current = false
+      return
+    }
+
+    onClick?.()
+  }
+
+  function handleContextMenu(event) {
+    if (!onLongPress || isCreate) return
+    event.preventDefault()
+  }
 
   return (
     <button
@@ -54,7 +137,9 @@ export default function PageTab({
         .filter(Boolean)
         .join(' ')}
       style={style}
-      onClick={onClick}
+      onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onContextMenu={handleContextMenu}
     >
       <span className="page-tab-title">
         {!isCreate && <PageIcon />}

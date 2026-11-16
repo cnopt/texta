@@ -1,0 +1,404 @@
+/* Light and paper theme overlays. Dark styles stay as authored; this file
+   only applies when html[data-theme] is set. Floating bar chrome and notebook
+   icon colours are left unchanged. */
+
+[data-theme="light"] {
+  --theme-bg: #f2f2f2;
+  --theme-text: #1c1c1c;
+  --theme-muted: #6a6a6a;
+  --theme-faint: #8a8a8a;
+  --theme-notebook-name: #4a4a4a;
+  --theme-surface: #f7f7f7;
+  --theme-raised: #fafafa;
+  --theme-chip: #d4d4d4;
+  --theme-chip-hover: #c8c8c8;
+  --theme-page-tab: #e0e0e0;
+  --theme-page-tab-active: #d4d4d4;
+  --theme-quick-bar: #d4d4d4;
+  --theme-note-card: #fafafa;
+  --theme-note-card-border: #b8b8b8;
+  --theme-note-card-text: #4a4a4a;
+  --theme-border: #c8c8c8;
+  --theme-border-strong: #b4b4b4;
+  --theme-create-border: #b0b0b0;
+  --theme-item: #e0e0e0;
+  --theme-toggle: #d6d6d6;
+  --theme-drag: #d0d0d0;
+  --theme-circle: #f2f2f2;
+  --theme-flyout-border: #c4c4c4;
+  --theme-date: rgba(28, 28, 28, 0.45);
+  --theme-hero-divider: rgba(0, 0, 0, 0.12);
+  --theme-hover-wash: rgba(0, 0, 0, 0.05);
+  --theme-create-active: rgba(0, 0, 0, 0.04);
+  --theme-swatch-border: rgba(0, 0, 0, 0.15);
+  --theme-backdrop: rgba(0, 0, 0, 0.32);
+  --theme-backdrop-soft: rgba(0, 0, 0, 0.22);
+}
+
+[data-theme="paper"] {
+  --theme-bg: #f3e4c4;
+  --theme-text: #3d3424;
+  --theme-muted: #6e5f48;
+  --theme-faint: #8a7a60;
+  --theme-notebook-name: #5a4c38;
+  --theme-surface: #f7ebd0;
+  --theme-raised: #faf3dc;
+  --theme-chip: #e4d09a;
+  --theme-chip-hover: #d9c286;
+  --theme-page-tab: #ead9a8;
+  --theme-page-tab-active: #e0cc94;
+  --theme-quick-bar: #e4d09a;
+  --theme-note-card: #faf1d8;
+  --theme-note-card-border: #c9b57e;
+  --theme-note-card-text: #5a4c38;
+  --theme-border: #cbb888;
+  --theme-border-strong: #bba56e;
+  --theme-create-border: #bba56e;
+  --theme-item: #ead9a8;
+  --theme-toggle: #e4d09a;
+  --theme-drag: #e0cc94;
+  --theme-circle: #f3e4c4;
+  --theme-flyout-border: #cbb888;
+  --theme-date: rgba(61, 52, 36, 0.48);
+  --theme-hero-divider: rgba(90, 72, 40, 0.16);
+  --theme-hover-wash: rgba(90, 72, 40, 0.08);
+  --theme-create-active: rgba(90, 72, 40, 0.06);
+  --theme-swatch-border: rgba(90, 72, 40, 0.2);
+  --theme-backdrop: rgba(50, 38, 18, 0.34);
+  --theme-backdrop-soft: rgba(50, 38, 18, 0.22);
+  --theme-notebook-mix: #e6d29e;
+}
+
+[data-theme],
+[data-theme] body,
+[data-theme] #root {
+  color: var(--theme-text);
+  background: var(--theme-bg);
+}
+
+[data-theme] .home-title,
+[data-theme] .home-section-heading {
+  color: var(--theme-text);
+}
+
+[data-theme] .home-settings-button {
+  color: var(--theme-muted);
+}
+
+[data-theme] .home-settings-button:hover {
+  color: var(--theme-text);
+}
+
+[data-theme="light"] .home-notebook-item {
+  background: color-mix(in srgb, var(--notebook-color) 38%, white);
+}
+
+[data-theme="paper"] .home-notebook-item {
+  background: color-mix(in srgb, var(--notebook-color) 32%, var(--theme-notebook-mix));
+}
+
+[data-theme] .home-notebook-name {
+  color: var(--theme-notebook-name);
+}
+
+[data-theme] .quick-bar-search,
+[data-theme] .quick-bar-new-note {
+  background: var(--theme-quick-bar);
+}
+
+[data-theme] .quick-bar-search-icon,
+[data-theme] .quick-bar-search-input::placeholder,
+[data-theme] .quick-bar-new-note-paper,
+[data-theme] .quick-bar-new-note-input {
+  color: var(--theme-muted);
+}
+
+[data-theme] .quick-bar-search-input {
+  color: var(--theme-text);
+}
+
+[data-theme] .note-card {
+  border-color: var(--theme-note-card-border);
+  background: var(--theme-note-card);
+}
+
+[data-theme] .note-card-content {
+  color: var(--theme-note-card-text);
+}
+
+[data-theme] .circle-button {
+  background: var(--theme-circle);
+  color: var(--theme-text);
+}
+
+[data-theme] .circle-button:hover {
+  color: #000;
+}
+
+[data-theme] .home-settings-backdrop,
+[data-theme] .settings-backdrop,
+[data-theme] .custom-tags-backdrop,
+[data-theme] .new-page-type-backdrop {
+  background: var(--theme-backdrop);
+}
+
+[data-theme] .create-notebook-backdrop {
+  background: var(--theme-backdrop-soft);
+}
+
+[data-theme] .home-settings-modal,
+[data-theme] .settings-modal,
+[data-theme] .custom-tags-modal {
+  background: var(--theme-surface);
+}
+
+[data-theme] .create-notebook,
+[data-theme] .new-page-type-modal,
+[data-theme] .editor-page-flyout,
+[data-theme] .notebook-home-flyout {
+  background: var(--theme-raised);
+}
+
+[data-theme] .home-settings-header,
+[data-theme] .settings-header,
+[data-theme] .custom-tags-header,
+[data-theme] .create-notebook-header,
+[data-theme] .new-page-type-header {
+  border-bottom-color: var(--theme-border);
+}
+
+[data-theme] .home-settings-back,
+[data-theme] .settings-back,
+[data-theme] .custom-tags-back,
+[data-theme] .create-notebook-back,
+[data-theme] .new-page-type-back,
+[data-theme] .home-settings-nav-arrow,
+[data-theme] .settings-nav-arrow,
+[data-theme] .home-settings-item-value,
+[data-theme] .settings-item-value,
+[data-theme] .custom-tags-delete,
+[data-theme] .custom-tags-empty,
+[data-theme] .custom-tags-field-label,
+[data-theme] .custom-tags-input::placeholder,
+[data-theme] .custom-tags-color-value,
+[data-theme] .custom-tags-hint,
+[data-theme] .custom-tags-format-button,
+[data-theme] .custom-tags-format-badge,
+[data-theme] .custom-tags-mode-badge,
+[data-theme] .custom-tags-mode-button,
+[data-theme] .create-notebook-input::placeholder,
+[data-theme] .new-page-type-input::placeholder,
+[data-theme] .editor-missing-text,
+[data-theme] .editor-toolbar-button,
+[data-theme] .notebook-home-missing-text,
+[data-theme] .notebook-home-pages-action,
+[data-theme] .page-tab-icon,
+[data-theme] .page-tab--create .page-tab-title,
+[data-theme] .floating-bar-tools-drag-handle {
+  color: var(--theme-muted);
+}
+
+[data-theme] .home-settings-title,
+[data-theme] .settings-title,
+[data-theme] .custom-tags-title,
+[data-theme] .home-settings-subheading,
+[data-theme] .editor-page-title,
+[data-theme] .notebook-home-page-drag-handle {
+  color: var(--theme-faint);
+}
+
+[data-theme] .home-settings-item-label,
+[data-theme] .settings-item-label,
+[data-theme] .custom-tags-item-trigger,
+[data-theme] .custom-tags-new-button,
+[data-theme] .custom-tags-input,
+[data-theme] .custom-tags-preview-text,
+[data-theme] .create-notebook-title,
+[data-theme] .create-notebook-input,
+[data-theme] .new-page-type-title,
+[data-theme] .new-page-type-header-title,
+[data-theme] .new-page-type-item-icon,
+[data-theme] .new-page-type-item-label,
+[data-theme] .new-page-type-input,
+[data-theme] .settings-step-button,
+[data-theme] .editor-page-flyout-item,
+[data-theme] .notebook-home-flyout-item,
+[data-theme] .notebook-home-name,
+[data-theme] .notebook-home-pages-heading,
+[data-theme] .page-tab,
+[data-theme] .floating-bar-tools-label {
+  color: var(--theme-text);
+}
+
+[data-theme] .home-settings-back:hover,
+[data-theme] .settings-back:hover,
+[data-theme] .custom-tags-back:hover,
+[data-theme] .create-notebook-back:hover,
+[data-theme] .new-page-type-back:hover,
+[data-theme] .home-settings-nav-button:hover .home-settings-nav-arrow,
+[data-theme] .home-settings-nav-button:hover .home-settings-item-label,
+[data-theme] .home-settings-option:hover .home-settings-item-label,
+[data-theme] .home-settings-option--selected .home-settings-item-label,
+[data-theme] .home-settings-action-button:hover:not(:disabled) .home-settings-item-label,
+[data-theme] .settings-nav-button:hover .settings-nav-arrow,
+[data-theme] .settings-nav-button:hover .settings-item-label,
+[data-theme] .settings-font-option:hover .settings-item-label,
+[data-theme] .settings-font-option--selected .settings-item-label,
+[data-theme] .custom-tags-delete:hover,
+[data-theme] .custom-tags-format-button--active,
+[data-theme] .custom-tags-format-button:hover,
+[data-theme] .custom-tags-mode-button--active,
+[data-theme] .custom-tags-mode-button:hover,
+[data-theme] .editor-page-title:hover,
+[data-theme] .editor-toolbar-button:hover,
+[data-theme] .notebook-home-pages-action:hover {
+  color: var(--theme-text);
+}
+
+[data-theme] .home-settings-divider {
+  background: var(--theme-border);
+}
+
+[data-theme] .home-settings-checkbox,
+[data-theme] .floating-bar-tools-checkbox {
+  border-color: var(--theme-border-strong);
+}
+
+[data-theme] .create-notebook-input,
+[data-theme] .new-page-type-item,
+[data-theme] .new-page-type-input,
+[data-theme] .custom-tags-new-button {
+  background: var(--theme-chip);
+}
+
+[data-theme] .page-tab,
+[data-theme] .page-tab:not(.page-tab--create) {
+  background: var(--theme-page-tab);
+}
+
+[data-theme] .page-tab:not(.page-tab--create):active,
+[data-theme] .notebook-home-page-row--dragging .page-tab {
+  background: var(--theme-page-tab-active);
+}
+
+[data-theme] .page-tab--create {
+  background: transparent;
+  border-color: var(--theme-create-border);
+}
+
+[data-theme] .page-tab--create:active {
+  background: var(--theme-create-active);
+}
+
+[data-theme] .new-page-type-item:hover,
+[data-theme] .custom-tags-new-button:hover,
+[data-theme] .editor-page-flyout-item:hover,
+[data-theme] .notebook-home-flyout-item:hover {
+  background: var(--theme-chip-hover);
+}
+
+[data-theme] .custom-tags-item,
+[data-theme] .custom-tags-input,
+[data-theme] .custom-tags-format-button,
+[data-theme] .custom-tags-mode-button,
+[data-theme] .custom-tags-preview,
+[data-theme] .notebook-home--missing {
+  background: var(--theme-item);
+}
+
+[data-theme] .custom-tags-format-button--active,
+[data-theme] .custom-tags-mode-button--active {
+  background: var(--theme-chip);
+}
+
+[data-theme] .custom-tags-format-badge,
+[data-theme] .custom-tags-mode-badge {
+  background: var(--theme-chip);
+}
+
+[data-theme] .custom-tags-delete:hover,
+[data-theme] .editor-toolbar-button:hover,
+[data-theme] .settings-step-button:hover:not(:disabled),
+[data-theme] .floating-bar-tools-drag-handle:active {
+  background: var(--theme-hover-wash);
+}
+
+[data-theme] .settings-step-button {
+  border-color: var(--theme-border);
+}
+
+[data-theme] .settings-step-button:hover:not(:disabled) {
+  border-color: var(--theme-border-strong);
+}
+
+[data-theme] .settings-toggle,
+[data-theme] .custom-tags-toggle {
+  border-color: var(--theme-border);
+  background: var(--theme-toggle);
+}
+
+[data-theme] .custom-tags-color-input {
+  border-color: var(--theme-border);
+}
+
+[data-theme] .custom-tags-swatch {
+  border-color: var(--theme-swatch-border);
+}
+
+[data-theme] .editor-page-flyout,
+[data-theme] .notebook-home-flyout {
+  border-color: var(--theme-flyout-border);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme] .notebook-home {
+  background: var(--theme-bg);
+}
+
+[data-theme] .notebook-home-bg {
+  background: var(--theme-bg);
+}
+
+[data-theme] .notebook-home-gradient {
+  background: linear-gradient(to bottom, transparent 30%, var(--theme-bg) 80%);
+}
+
+[data-theme] .notebook-home-hero-divider {
+  background: var(--theme-hero-divider);
+}
+
+[data-theme] .notebook-home-date {
+  color: var(--theme-date);
+}
+
+[data-theme] .notebook-home-page-drag-handle:active,
+[data-theme] .floating-bar-tools-drag-handle:active {
+  color: var(--theme-muted);
+}
+
+[data-theme] .floating-bar-tools-item--dragging {
+  background: var(--theme-drag);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme] .notebook-home-page-row--dragging .page-tab {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme] .editor-page-flyout-item--danger,
+[data-theme] .notebook-home-flyout-item--danger {
+  color: #ff6b6b;
+}
+
+[data-theme] .editor-page-flyout-item--danger:hover,
+[data-theme] .notebook-home-flyout-item--danger:hover {
+  background: rgba(255, 107, 107, 0.12);
+}
+
+[data-theme] .notebook-home-pages-action--save {
+  color: #377aff;
+}
+
+[data-theme] .notebook-home-pages-action--save:hover {
+  color: #5b91ff;
+}

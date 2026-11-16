@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { Keyboard } from '@capacitor/keyboard'
+import { Dialog } from '@capawesome/capacitor-dialog'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Compartment, EditorSelection, EditorState, Prec } from '@codemirror/state'
 import { EditorView, keymap, placeholder } from '@codemirror/view'
@@ -16,6 +17,9 @@ import {
   editorScrollMargins,
   ensureTallyTrailingLine,
   formattingDecorations,
+  handleTallyBackspace,
+  interceptTallyBackspace,
+  selectedTallyField,
   setEditorBottomScrollInset,
   withTallyTrailingLine,
 } from './editorExtensions.js'
@@ -24,7 +28,7 @@ import {
   getEditorSettings,
   saveEditorSettings,
 } from './editorSettings.js'
-import { getHomeSettings } from './homeSettings.js'
+import { DEFAULT_SETTINGS as HOME_DEFAULT_SETTINGS, getHomeSettings } from './homeSettings.js'
 import { createDefaultFloatingBarTools, DEFAULT_FLOATING_BAR_COLOR } from './floatingBarSettings.js'
 import { getFontFamilyStack } from './fontFamilies.js'
 import {
@@ -140,11 +144,11 @@ export default function Editor() {
   const [autoIndentAfterColon, setAutoIndentAfterColon] = useState(
     DEFAULT_SETTINGS.autoIndentAfterColon,
   )
+  const [colorScheme, setColorScheme] = useState(HOME_DEFAULT_SETTINGS.theme)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
   const [pageMenuOpen, setPageMenuOpen] = useState(false)
   const [renamePageOpen, setRenamePageOpen] = useState(false)
-  const [deletePageConfirmOpen, setDeletePageConfirmOpen] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
   // Cleared as soon as the Android viewport starts expanding so the bar can
   // fade out while it rides the keyboard-dismiss resize, instead of popping
@@ -242,6 +246,8 @@ export default function Editor() {
   }
 
   handleBackspaceRef.current = (view) => {
+    if (handleTallyBackspace(view)) return true
+
     const { from, to } = view.state.selection.main
     if (from !== to) return false
 
@@ -285,6 +291,7 @@ export default function Editor() {
       setCustomTags(tags)
       setFloatingBarColor(homeSettings.floatingBarColor)
       setFloatingBarTools(homeSettings.floatingBarTools)
+      setColorScheme(homeSettings.theme)
       setPageData(page)
       setNoteData(note)
       settingsHydratedRef.current = true
@@ -353,6 +360,8 @@ export default function Editor() {
           EditorView.contentAttributes.of({ spellcheck: 'true' }),
           editorScrollMargins(),
           ...androidEditorSupport(),
+          selectedTallyField,
+          interceptTallyBackspace(),
           ensureTallyTrailingLine(),
           placeholder('Start writing...'),
           Prec.high(
@@ -371,6 +380,7 @@ export default function Editor() {
               ...getEditorTypography(fontSize, fontFamily, lineHeight),
               textAlign: textAlignment,
               todoSpacing,
+              colorScheme,
             }),
           ),
           decorationsCompartment.of(
@@ -452,12 +462,18 @@ export default function Editor() {
     )
   }
 
-  function handlePageDeleteClick() {
+  async function handlePageDeleteClick() {
     setPageMenuOpen(false)
-    setDeletePageConfirmOpen(true)
-  }
+    if (!pageData) return
 
-  async function handleConfirmPageDelete() {
+    const { value } = await Dialog.confirm({
+      title: 'Delete page?',
+      message: `“${pageData.page.title}” will be permanently deleted.`,
+      okButtonTitle: 'Delete',
+      cancelButtonTitle: 'Cancel',
+    })
+    if (!value) return
+
     await deletePage(notebookId, pageId)
     navigate(`/notebook/${notebookId}`)
   }
@@ -469,10 +485,11 @@ export default function Editor() {
           ...getEditorTypography(fontSize, fontFamily, lineHeight),
           textAlign: textAlignment,
           todoSpacing,
+          colorScheme,
         }),
       ),
     })
-  }, [fontSize, fontFamily, lineHeight, textAlignment, todoSpacing, themeCompartment])
+  }, [fontSize, fontFamily, lineHeight, textAlignment, todoSpacing, colorScheme, themeCompartment])
 
   useEffect(() => {
     viewRef.current?.dispatch({
@@ -764,7 +781,7 @@ export default function Editor() {
                   type="button"
                   className="editor-page-flyout-item editor-page-flyout-item--danger"
                   role="menuitem"
-                  onClick={handlePageDeleteClick}
+                  onClick={() => void handlePageDeleteClick()}
                 >
                   Delete
                 </button>
@@ -842,46 +859,6 @@ export default function Editor() {
           title={pageData?.page.title ?? ''}
           onSaved={(nextTitle) => void handlePageRenamed(nextTitle)}
         />
-      )}
-
-      {deletePageConfirmOpen && pageData && (
-        <>
-          <div
-            className="editor-page-confirm-backdrop"
-            onClick={() => setDeletePageConfirmOpen(false)}
-            aria-hidden="true"
-          />
-          <div
-            className="editor-page-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="page-delete-title"
-            aria-describedby="page-delete-desc"
-          >
-            <h2 id="page-delete-title" className="editor-page-confirm-title">
-              Delete page?
-            </h2>
-            <p id="page-delete-desc" className="editor-page-confirm-text">
-              “{pageData.page.title}” will be permanently deleted.
-            </p>
-            <div className="editor-page-confirm-actions">
-              <button
-                type="button"
-                className="editor-page-confirm-button"
-                onClick={() => setDeletePageConfirmOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="editor-page-confirm-button editor-page-confirm-button--danger"
-                onClick={() => void handleConfirmPageDelete()}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </>
       )}
     </div>
   )

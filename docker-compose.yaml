@@ -1,0 +1,8 @@
+version: "3.9"
+services:
+  texta:
+    build: .
+    container_name: texta
+    ports:
+      - "3005:3005"
+    restart: unless-stopped

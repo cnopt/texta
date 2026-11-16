@@ -264,22 +264,6 @@
   color: #ebebeb;
 }
 
-.home-settings-backup-message {
-  margin: 8px 4px 0;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 18px;
-  letter-spacing: -0.1px;
-}
-
-.home-settings-backup-message--success {
-  color: #9a9a9a;
-}
-
-.home-settings-backup-message--error {
-  color: #ff6b6b;
-}
-
 .home-settings-import-input {
   position: absolute;
   width: 1px;

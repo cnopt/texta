@@ -141,3 +141,30 @@ export async function deletePage(notebookId, pageId) {
   rememberNotebooks(notebooks)
   return true
 }
+
+export async function reorderPages(notebookId, orderedPageIds) {
+  const notebooks = await getNotebooks()
+  const notebook = notebooks.find((item) => item.id === notebookId)
+  if (!notebook) return null
+  if (!Array.isArray(orderedPageIds)) return notebook
+
+  const byId = new Map(notebook.pages.map((page) => [page.id, page]))
+  const nextPages = []
+  const seen = new Set()
+
+  for (const pageId of orderedPageIds) {
+    const page = byId.get(pageId)
+    if (!page || seen.has(pageId)) continue
+    nextPages.push(page)
+    seen.add(pageId)
+  }
+
+  for (const page of notebook.pages) {
+    if (!seen.has(page.id)) nextPages.push(page)
+  }
+
+  notebook.pages = nextPages
+  await writeJson(FILENAME, notebooks)
+  rememberNotebooks(notebooks)
+  return notebook
+}

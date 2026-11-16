@@ -25,6 +25,8 @@
     "@capacitor/ios": "^8.5.0",
     "@capacitor/keyboard": "^8.0.5",
     "@capacitor/share": "^8.0.1",
+    "@capawesome/capacitor-dialog": "^0.1.1",
+    "@capawesome/capacitor-toast": "^0.1.1",
     "@codemirror/commands": "^6.10.4",
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.7",

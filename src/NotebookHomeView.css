@@ -150,79 +150,6 @@
   }
 }
 
-.notebook-home-confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.notebook-home-confirm {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  z-index: 301;
-  width: min(320px, calc(100vw - 40px));
-  padding: 24px 20px 16px;
-  border-radius: 16px;
-  background: #1f1f1f;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-}
-
-.notebook-home-confirm-title {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 24px;
-  letter-spacing: -0.3px;
-  color: #ebebeb;
-  text-align: center;
-}
-
-.notebook-home-confirm-text {
-  margin: 0 0 24px;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 20px;
-  letter-spacing: -0.08px;
-  color: #9a9a9a;
-  text-align: center;
-}
-
-.notebook-home-confirm-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.notebook-home-confirm-button {
-  flex: 1;
-  padding: 12px 16px;
-  border: none;
-  border-radius: 10px;
-  background: #292929;
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 22px;
-  letter-spacing: -0.2px;
-  color: #ebebeb;
-  cursor: pointer;
-}
-
-.notebook-home-confirm-button:hover {
-  background: #333;
-}
-
-.notebook-home-confirm-button--danger {
-  background: rgba(255, 107, 107, 0.16);
-  color: #ff6b6b;
-}
-
-.notebook-home-confirm-button--danger:hover {
-  background: rgba(255, 107, 107, 0.24);
-}
-
 .notebook-home-hero {
   display: flex;
   flex-direction: row;
@@ -263,8 +190,17 @@
   color: rgba(235, 235, 235, 0.45);
 }
 
-.notebook-home-pages-heading {
+.notebook-home-pages-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin: 0 0 20px;
+  min-height: 24px;
+}
+
+.notebook-home-pages-heading {
+  margin: 0;
   font-size: 16px;
   font-weight: 500;
   line-height: 24px;
@@ -273,10 +209,141 @@
   text-align: left;
 }
 
+.notebook-home-pages-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.notebook-home-pages-action {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: -0.12px;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+
+.notebook-home-pages-action:hover {
+  color: #ebebeb;
+}
+
+.notebook-home-pages-action--save {
+  color: #377aff;
+}
+
+.notebook-home-pages-action--save:hover {
+  color: #5b91ff;
+}
+
 .notebook-home-page-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.notebook-home-page-list--reordering,
+.notebook-home-page-list--dragging {
+  user-select: none;
+}
+
+.notebook-home-page-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.notebook-home-page-row .page-tab {
+  flex: 1;
+  min-width: 0;
+}
+
+.notebook-home-page-row--reordering .page-tab {
+  cursor: default;
+}
+
+.notebook-home-page-row--dragging {
+  z-index: 1;
+  opacity: 0.72;
+}
+
+.notebook-home-page-row--dragging .page-tab {
+  background: #202020;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+.notebook-home-page-row--drop-before::before,
+.notebook-home-page-row--drop-after::after {
+  content: '';
+  position: absolute;
+  left: 40px;
+  right: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: #377aff;
+}
+
+.notebook-home-page-row--drop-before::before {
+  top: -6px;
+}
+
+.notebook-home-page-row--drop-after::after {
+  bottom: -6px;
+}
+
+.notebook-home-page-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #6e6e6e;
+  cursor: grab;
+  touch-action: none;
+  transition:
+    width 160ms ease-out,
+    margin 160ms ease-out,
+    opacity 160ms ease-out;
+}
+
+.notebook-home-page-row--reordering .notebook-home-page-drag-handle {
+  width: 32px;
+  margin-right: 8px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.notebook-home-page-drag-handle:active {
+  cursor: grabbing;
+  color: #9a9a9a;
+}
+
+.notebook-home-page-drag-icon {
+  width: 10px;
+  height: 16px;
+  fill: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notebook-home-page-drag-handle {
+    transition: none;
+  }
 }
 
 .notebook-home-missing-text {

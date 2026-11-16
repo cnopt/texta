@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
+import { Dialog } from '@capawesome/capacitor-dialog'
 import {
   addCustomTag,
   DEFAULT_TAG_FORMAT,
+  DEFAULT_TAG_MODE,
   deleteCustomTag,
   getCustomTags,
+  TAG_MODE_LINE,
+  TAG_MODE_WORD,
   updateCustomTag,
 } from './customTags.js'
 import { getTagStyle } from './tagStyles.js'
@@ -18,8 +22,14 @@ const EMPTY_FORM = {
   trigger: '',
   textColor: DEFAULT_TEXT_COLOR,
   caseSensitive: false,
+  mode: DEFAULT_TAG_MODE,
   ...DEFAULT_TAG_FORMAT,
 }
+
+const TAG_MODE_OPTIONS = [
+  { id: TAG_MODE_WORD, label: 'Word' },
+  { id: TAG_MODE_LINE, label: 'Line' }
+]
 
 function FormatToggleButtons({ bold, italic, underline, onChange }) {
   return (
@@ -134,6 +144,7 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
       italic: tag.italic,
       underline: tag.underline,
       caseSensitive: Boolean(tag.caseSensitive),
+      mode: tag.mode || DEFAULT_TAG_MODE,
     })
     setStep('edit')
   }
@@ -157,6 +168,7 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
       italic: form.italic,
       underline: form.underline,
       caseSensitive: form.caseSensitive,
+      mode: form.mode,
     })
 
     if (!created) return
@@ -166,11 +178,19 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
     resetForm()
   }
 
-  async function handleDeleteTag(id) {
-    await deleteCustomTag(id)
+  async function handleDeleteTag(tag) {
+    const { value } = await Dialog.confirm({
+      title: 'Delete tag?',
+      message: `“${tag.trigger}” will be permanently deleted.`,
+      okButtonTitle: 'Delete',
+      cancelButtonTitle: 'Cancel',
+    })
+    if (!value) return
+
+    await deleteCustomTag(tag.id)
     await refreshTags()
 
-    if (editingTagId === id) {
+    if (editingTagId === tag.id) {
       setStep('list')
       resetForm()
     }
@@ -242,13 +262,16 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
                           {tag.bold && <span className="custom-tags-format-badge">B</span>}
                           {tag.italic && <span className="custom-tags-format-badge">I</span>}
                           {tag.underline && <span className="custom-tags-format-badge">U</span>}
+                          <span className="custom-tags-mode-badge">
+                            {tag.mode === TAG_MODE_WORD ? 'Word' : 'Line'}
+                          </span>
                         </div>
                       </button>
 
                       <button
                         type="button"
                         className="custom-tags-delete"
-                        onClick={() => void handleDeleteTag(tag.id)}
+                        onClick={() => void handleDeleteTag(tag)}
                         aria-label={`Delete tag ${tag.trigger}`}
                       >
                         ×
@@ -278,13 +301,37 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
                   placeholder='e.g. i:'
                   value={form.trigger}
                   onChange={(e) => void handleFormChange({ trigger: e.target.value })}
-                  disabled={isEditing}
                   autoFocus={!isEditing}
                 />
               </label>
 
+              <div className="custom-tags-field">
+                <span className="custom-tags-field-label" id="custom-tags-mode-label">
+                  Mode
+                </span>
+                <div className="custom-tags-mode-buttons" role="group" aria-labelledby="custom-tags-mode-label">
+                  {TAG_MODE_OPTIONS.map((option) => {
+                    const selected = form.mode === option.id
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className={`custom-tags-mode-button${selected ? ' custom-tags-mode-button--active' : ''}`}
+                        aria-pressed={selected}
+                        onClick={() => void handleFormChange({ mode: option.id })}
+                      >
+                        {option.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               <p className="custom-tags-hint">
-                Styling activates after the trigger and a space, and continues to the end of the line.
+                {form.mode === TAG_MODE_WORD
+                  ? 'Styling activates as soon as the trigger is typed, and stops at the next space.'
+                  : 'Styling activates as soon as the trigger is typed, and continues to the end of the line.'}
               </p>
 
               <div className="custom-tags-field">
@@ -333,9 +380,18 @@ export default function CustomTagsModal({ isOpen, onClose, onTagsChange, fontFam
                   className="custom-tags-preview-text"
                   style={{ fontFamily: previewFontFamily }}
                 >
-                  <span style={getTagStyle(previewTag)}>
-                    {form.trigger.trim() || 'trigger'} example text
-                  </span>
+                  {form.mode === TAG_MODE_WORD ? (
+                    <>
+                      <span style={getTagStyle(previewTag)}>
+                        {form.trigger.trim() || 'trigger'}
+                      </span>
+                      {' Example text'}
+                    </>
+                  ) : (
+                    <span style={getTagStyle(previewTag)}>
+                      {form.trigger.trim() || 'trigger'} example text
+                    </span>
+                  )}
                 </p>
               </div>
             </div>

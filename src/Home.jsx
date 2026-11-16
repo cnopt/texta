@@ -8,6 +8,7 @@ import HomeSettings from './HomeSettings.jsx'
 import NotebookIcon from './NotebookIcon.jsx'
 import { DEFAULT_SETTINGS, getHomeSettings, saveHomeSettings } from './homeSettings.js'
 import { createDefaultFloatingBarTools, DEFAULT_FLOATING_BAR_COLOR } from './floatingBarSettings.js'
+import { applyTheme } from './theme.js'
 import { getNotebooks } from './notebooks.js'
 import { getNotes } from './notes.js'
 import { getNoteCardMetrics } from './noteCardGrid.js'
@@ -26,6 +27,7 @@ export default function Home({ active = true }) {
   const [noteCardDisplayMode, setNoteCardDisplayMode] = useState(
     DEFAULT_SETTINGS.noteCardDisplayMode,
   )
+  const [theme, setTheme] = useState(DEFAULT_SETTINGS.theme)
   const [floatingBarColor, setFloatingBarColor] = useState(DEFAULT_FLOATING_BAR_COLOR)
   const [floatingBarTools, setFloatingBarTools] = useState(createDefaultFloatingBarTools())
 
@@ -41,6 +43,8 @@ export default function Home({ active = true }) {
     setQuickBar(homeSettings.quickBar)
     setSections(homeSettings.sections)
     setNoteCardDisplayMode(homeSettings.noteCardDisplayMode)
+    setTheme(homeSettings.theme)
+    applyTheme(homeSettings.theme)
     setFloatingBarColor(homeSettings.floatingBarColor)
     setFloatingBarTools(homeSettings.floatingBarTools)
   }
@@ -64,6 +68,8 @@ export default function Home({ active = true }) {
       setQuickBar(homeSettings.quickBar)
       setSections(homeSettings.sections)
       setNoteCardDisplayMode(homeSettings.noteCardDisplayMode)
+      setTheme(homeSettings.theme)
+      applyTheme(homeSettings.theme)
       setFloatingBarColor(homeSettings.floatingBarColor)
       setFloatingBarTools(homeSettings.floatingBarTools)
     }
@@ -108,6 +114,12 @@ export default function Home({ active = true }) {
   function handleNoteCardDisplayModeChange(nextMode) {
     setNoteCardDisplayMode(nextMode)
     void saveHomeSettings({ noteCardDisplayMode: nextMode })
+  }
+
+  function handleThemeChange(nextTheme) {
+    setTheme(nextTheme)
+    applyTheme(nextTheme)
+    void saveHomeSettings({ theme: nextTheme })
   }
 
   function handleFloatingBarColorChange(nextColor) {
@@ -243,6 +255,8 @@ export default function Home({ active = true }) {
         onSectionChange={handleSectionChange}
         noteCardDisplayMode={noteCardDisplayMode}
         onNoteCardDisplayModeChange={handleNoteCardDisplayModeChange}
+        theme={theme}
+        onThemeChange={handleThemeChange}
         floatingBarColor={floatingBarColor}
         onFloatingBarColorChange={handleFloatingBarColorChange}
         floatingBarTools={floatingBarTools}

@@ -1,13 +1,67 @@
 import { useEffect, useRef, useState } from 'react'
+import { Dialog } from '@capawesome/capacitor-dialog'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import CreateNotebook from './CreateNotebook.jsx'
 import NewPageTypeModal from './NewPageTypeModal.jsx'
 import NotebookIcon from './NotebookIcon.jsx'
 import PageTab from './PageTab.jsx'
-import { createPage, deleteNotebook, getCachedNotebookById, getNotebookById } from './notebooks.js'
+import {
+  createPage,
+  deleteNotebook,
+  getCachedNotebookById,
+  getNotebookById,
+  reorderPages,
+} from './notebooks.js'
+import { setNotebookHomeBackHandler } from './notebookHomeBack.js'
 import './CircleButton.css'
 import './ScreenToolbar.css'
 import './NotebookHomeView.css'
+
+function DragHandleIcon() {
+  return (
+    <svg className="notebook-home-page-drag-icon" viewBox="0 0 10 16" aria-hidden="true">
+      <circle cx="2" cy="2" r="1.35" />
+      <circle cx="8" cy="2" r="1.35" />
+      <circle cx="2" cy="8" r="1.35" />
+      <circle cx="8" cy="8" r="1.35" />
+      <circle cx="2" cy="14" r="1.35" />
+      <circle cx="8" cy="14" r="1.35" />
+    </svg>
+  )
+}
+
+function getInsertBeforeIndex(listElement, clientY) {
+  const items = [...listElement.querySelectorAll('[data-page-index]')]
+
+  for (let index = 0; index < items.length; index += 1) {
+    const rect = items[index].getBoundingClientRect()
+    if (clientY < rect.top + rect.height / 2) return index
+  }
+
+  return items.length
+}
+
+function getReorderIndex(insertBeforeIndex, dragIndex) {
+  if (insertBeforeIndex > dragIndex) return insertBeforeIndex - 1
+  return insertBeforeIndex
+}
+
+function movePage(pages, fromIndex, toIndex) {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= pages.length ||
+    toIndex >= pages.length
+  ) {
+    return pages
+  }
+
+  const next = [...pages]
+  const [item] = next.splice(fromIndex, 1)
+  next.splice(toIndex, 0, item)
+  return next
+}
 
 function seedNotebook(id, locationState) {
   const fromState = locationState?.notebook
@@ -34,8 +88,15 @@ export default function NotebookHomeView() {
   const [pageTypeModalOpen, setPageTypeModalOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [reordering, setReordering] = useState(false)
+  const [draftPages, setDraftPages] = useState([])
+  const [draggingIndex, setDraggingIndex] = useState(null)
+  const [insertBeforeIndex, setInsertBeforeIndex] = useState(null)
   const menuRef = useRef(null)
+  const pageListRef = useRef(null)
+  const dragIndexRef = useRef(null)
+  const draftPagesRef = useRef([])
+  const ignorePageClickRef = useRef(false)
   const shouldAnimateBackground = Boolean(location.state?.transitionBackground)
   const [enterPhase, setEnterPhase] = useState(
     shouldAnimateBackground ? 'entering' : 'idle',
@@ -45,6 +106,13 @@ export default function NotebookHomeView() {
   useEffect(() => {
     let cancelled = false
     const seeded = seedNotebook(id, location.state)
+
+    setReordering(false)
+    setDraftPages([])
+    draftPagesRef.current = []
+    dragIndexRef.current = null
+    setDraggingIndex(null)
+    setInsertBeforeIndex(null)
 
     if (seeded) {
       setNotebook(seeded)
@@ -89,6 +157,33 @@ export default function NotebookHomeView() {
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [menuOpen])
+
+  useEffect(() => {
+    if (!reordering) return undefined
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') handleCancelReorder()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [reordering])
+
+  useEffect(() => {
+    if (!reordering) {
+      setNotebookHomeBackHandler(null)
+      return undefined
+    }
+
+    setNotebookHomeBackHandler(() => handleCancelReorder())
+
+    return () => {
+      setNotebookHomeBackHandler(null)
+    }
+  }, [reordering])
 
   useEffect(() => {
     if (enterPhase !== 'entering') return undefined
@@ -182,14 +277,107 @@ export default function NotebookHomeView() {
     setNotebook(await getNotebookById(notebook.id))
   }
 
-  function handleDeleteClick() {
+  async function handleDeleteClick() {
     setMenuOpen(false)
-    setDeleteConfirmOpen(true)
-  }
+    const { value } = await Dialog.confirm({
+      title: 'Delete notebook?',
+      message: `“${notebook.name}” and all of its pages will be permanently deleted.`,
+      okButtonTitle: 'Delete',
+      cancelButtonTitle: 'Cancel',
+    })
+    if (!value) return
 
-  async function handleConfirmDelete() {
     await deleteNotebook(notebook.id)
     navigate('/')
+  }
+
+  function handleStartReorder() {
+    if (reordering || notebook.pages.length === 0) return
+    ignorePageClickRef.current = true
+    setMenuOpen(false)
+    setDraftPages(notebook.pages)
+    draftPagesRef.current = notebook.pages
+    setReordering(true)
+  }
+
+  function handleCancelReorder() {
+    dragIndexRef.current = null
+    setDraggingIndex(null)
+    setInsertBeforeIndex(null)
+    setDraftPages([])
+    draftPagesRef.current = []
+    setReordering(false)
+    ignorePageClickRef.current = false
+  }
+
+  async function handleSaveReorder() {
+    const next = await reorderPages(
+      notebook.id,
+      draftPagesRef.current.map((page) => page.id),
+    )
+    if (next) setNotebook(next)
+    handleCancelReorder()
+  }
+
+  function handlePageClick(page) {
+    if (reordering || ignorePageClickRef.current) {
+      ignorePageClickRef.current = false
+      return
+    }
+
+    navigate(`/notebook/${notebook.id}/page/${page.id}`)
+  }
+
+  function finishDrag() {
+    dragIndexRef.current = null
+    setDraggingIndex(null)
+    setInsertBeforeIndex(null)
+  }
+
+  function handleDragHandlePointerDown(event, index) {
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragIndexRef.current = index
+    setDraggingIndex(index)
+    setInsertBeforeIndex(index)
+  }
+
+  function handleDragHandlePointerMove(event) {
+    const currentDragIndex = dragIndexRef.current
+    if (currentDragIndex === null || !pageListRef.current) return
+
+    event.preventDefault()
+
+    const nextInsertBeforeIndex = getInsertBeforeIndex(pageListRef.current, event.clientY)
+    setInsertBeforeIndex(nextInsertBeforeIndex)
+
+    const nextDropIndex = getReorderIndex(nextInsertBeforeIndex, currentDragIndex)
+    if (nextDropIndex !== currentDragIndex) {
+      const nextPages = movePage(draftPagesRef.current, currentDragIndex, nextDropIndex)
+      draftPagesRef.current = nextPages
+      setDraftPages(nextPages)
+      dragIndexRef.current = nextDropIndex
+      setDraggingIndex(nextDropIndex)
+    }
+  }
+
+  function handleDragHandlePointerUp(event) {
+    if (dragIndexRef.current === null) return
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+
+    finishDrag()
+  }
+
+  function handleDragHandlePointerCancel(event) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+
+    finishDrag()
   }
 
   const homeClassName = [
@@ -216,45 +404,53 @@ export default function NotebookHomeView() {
           <button
             type="button"
             className="circle-button"
-            onClick={() => navigate('/')}
-            aria-label="Go back"
+            onClick={() => {
+              if (reordering) {
+                handleCancelReorder()
+                return
+              }
+              navigate('/')
+            }}
+            aria-label={reordering ? 'Cancel reorder' : 'Go back'}
           >
             ←
           </button>
 
-          <div className="notebook-home-menu-wrap" ref={menuRef}>
-            <button
-              type="button"
-              className="circle-button"
-              onClick={() => setMenuOpen((open) => !open)}
-              aria-label="More options"
-              aria-expanded={menuOpen}
-              aria-haspopup="menu"
-            >
-              ⋯
-            </button>
+          {!reordering && (
+            <div className="notebook-home-menu-wrap" ref={menuRef}>
+              <button
+                type="button"
+                className="circle-button"
+                onClick={() => setMenuOpen((open) => !open)}
+                aria-label="More options"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+              >
+                ⋯
+              </button>
 
-            {menuOpen && (
-              <div className="notebook-home-flyout" role="menu">
-                <button
-                  type="button"
-                  className="notebook-home-flyout-item"
-                  role="menuitem"
-                  onClick={handleRename}
-                >
-                  Rename
-                </button>
-                <button
-                  type="button"
-                  className="notebook-home-flyout-item notebook-home-flyout-item--danger"
-                  role="menuitem"
-                  onClick={handleDeleteClick}
-                >
-                  Delete
-                </button>
-              </div>
-            )}
-          </div>
+              {menuOpen && (
+                <div className="notebook-home-flyout" role="menu">
+                  <button
+                    type="button"
+                    className="notebook-home-flyout-item"
+                    role="menuitem"
+                    onClick={handleRename}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    className="notebook-home-flyout-item notebook-home-flyout-item--danger"
+                    role="menuitem"
+                    onClick={() => void handleDeleteClick()}
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </header>
 
         <section className="notebook-home-hero">
@@ -275,22 +471,97 @@ export default function NotebookHomeView() {
         <div className="notebook-home-hero-divider" aria-hidden="true" />
 
         <section className="notebook-home-pages">
-          <h2 className="notebook-home-pages-heading">Pages</h2>
+          <div className="notebook-home-pages-header">
+            <h2 className="notebook-home-pages-heading">Pages</h2>
+            {reordering && (
+              <div className="notebook-home-pages-actions">
+                <button
+                  type="button"
+                  className="notebook-home-pages-action"
+                  onClick={handleCancelReorder}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="notebook-home-pages-action notebook-home-pages-action--save"
+                  onClick={() => void handleSaveReorder()}
+                >
+                  Save
+                </button>
+              </div>
+            )}
+          </div>
 
-          <div className="notebook-home-page-list">
-            {notebook.pages.map((page) => (
+          <div
+            ref={pageListRef}
+            className={[
+              'notebook-home-page-list',
+              reordering && 'notebook-home-page-list--reordering',
+              draggingIndex !== null && 'notebook-home-page-list--dragging',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            {(reordering ? draftPages : notebook.pages).map((page, index) => {
+              const targetIndex =
+                draggingIndex !== null
+                  ? getReorderIndex(insertBeforeIndex ?? draggingIndex, draggingIndex)
+                  : null
+              const showDropBefore =
+                targetIndex !== draggingIndex &&
+                insertBeforeIndex === index &&
+                insertBeforeIndex < draftPages.length
+              const showDropAfter =
+                targetIndex !== draggingIndex &&
+                insertBeforeIndex === draftPages.length &&
+                index === draftPages.length - 1
+
+              return (
+                <div
+                  key={page.id}
+                  data-page-index={index}
+                  className={[
+                    'notebook-home-page-row',
+                    reordering && 'notebook-home-page-row--reordering',
+                    draggingIndex === index && 'notebook-home-page-row--dragging',
+                    showDropBefore && 'notebook-home-page-row--drop-before',
+                    showDropAfter && 'notebook-home-page-row--drop-after',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <button
+                    type="button"
+                    className="notebook-home-page-drag-handle"
+                    tabIndex={reordering ? 0 : -1}
+                    disabled={!reordering}
+                    aria-hidden={!reordering}
+                    aria-label={`Reorder ${page.title}`}
+                    onPointerDown={(event) => handleDragHandlePointerDown(event, index)}
+                    onPointerMove={handleDragHandlePointerMove}
+                    onPointerUp={handleDragHandlePointerUp}
+                    onPointerCancel={handleDragHandlePointerCancel}
+                  >
+                    <DragHandleIcon />
+                  </button>
+
+                  <PageTab
+                    title={page.title}
+                    onClick={reordering ? undefined : () => handlePageClick(page)}
+                    onLongPress={reordering ? undefined : handleStartReorder}
+                  />
+                </div>
+              )
+            })}
+
+            {!reordering && (
               <PageTab
-                key={page.id}
-                title={page.title}
-                onClick={() => navigate(`/notebook/${notebook.id}/page/${page.id}`)}
+                title="+ Create New Page"
+                variant="create"
+                onClick={() => setPageTypeModalOpen(true)}
               />
-            ))}
-
-            <PageTab
-              title="+ Create New Page"
-              variant="create"
-              onClick={() => setPageTypeModalOpen(true)}
-            />
+            )}
           </div>
         </section>
       </div>
@@ -307,46 +578,6 @@ export default function NotebookHomeView() {
         onCreated={handleRenameSaved}
         notebook={notebook}
       />
-
-      {deleteConfirmOpen && (
-        <>
-          <div
-            className="notebook-home-confirm-backdrop"
-            onClick={() => setDeleteConfirmOpen(false)}
-            aria-hidden="true"
-          />
-          <div
-            className="notebook-home-confirm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="notebook-delete-title"
-            aria-describedby="notebook-delete-desc"
-          >
-            <h2 id="notebook-delete-title" className="notebook-home-confirm-title">
-              Delete notebook?
-            </h2>
-            <p id="notebook-delete-desc" className="notebook-home-confirm-text">
-              “{notebook.name}” and all of its pages will be permanently deleted.
-            </p>
-            <div className="notebook-home-confirm-actions">
-              <button
-                type="button"
-                className="notebook-home-confirm-button"
-                onClick={() => setDeleteConfirmOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="notebook-home-confirm-button notebook-home-confirm-button--danger"
-                onClick={() => void handleConfirmDelete()}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   )
 }
