@@ -47,9 +47,9 @@ Texta is free, with no ads and no in-app purchases.
 
 | Asset | Spec | Status |
 |-------|------|--------|
-| App icon | 512 × 512 PNG, 32-bit | Export from branded launcher art |
-| Feature graphic | 1024 × 500 PNG | Create before closed testing |
-| Phone screenshots | min 2 (recommend 4–8); 16:9 or 9:16 | Capture on a physical device or emulator |
+| App icon | 512 × 512 PNG, 32-bit | Ready: [`store-assets/play-icon-512.png`](store-assets/play-icon-512.png) |
+| Feature graphic | 1024 × 500 PNG | Ready: [`store-assets/feature-graphic-1024x500.png`](store-assets/feature-graphic-1024x500.png) |
+| Phone screenshots | min 2 (recommend 4–8); 9:16 | Ready: eight 1080×1920 shots in [`store-assets/phone/`](store-assets/phone/) |
 | 7" tablet screenshots | optional | Add if claiming tablet support |
 | 10" tablet screenshots | optional | Add if claiming tablet support |
 

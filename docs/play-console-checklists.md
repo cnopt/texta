@@ -13,9 +13,9 @@ Finish setup before closed testing can start.
 - [x] App created with application ID `com.hanno.texta`
 - [x] App name: Texta
 - [ ] Short + full description from [play-store-listing.md](play-store-listing.md)
-- [ ] App icon 512×512 — use `[store-assets/play-icon-512.png](store-assets/play-icon-512.png)` (or a refined export)
-- [ ] Feature graphic 1024×500 uploaded
-- [ ] Phone screenshots (min 2; prefer 4–8)
+- [ ] App icon 512×512 — upload `[store-assets/play-icon-512.png](store-assets/play-icon-512.png)`
+- [ ] Feature graphic 1024×500 — upload `[store-assets/feature-graphic-1024x500.png](store-assets/feature-graphic-1024x500.png)`
+- [ ] Phone screenshots — upload `phone-01.png` through `phone-08.png` from `[store-assets/phone/](store-assets/phone/)`
 - [x] Privacy policy URL (hosted `privacy.html`) saved
 - [x] Category: Productivity
 - [x] Contact email set

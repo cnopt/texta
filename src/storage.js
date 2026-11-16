@@ -18,7 +18,7 @@ async function ensureTextaDir() {
       recursive: true,
     }).catch((error) => {
       const message = String(error?.message ?? error)
-      if (!/already exists|Directory exists/i.test(message)) {
+      if (!/already exists|does already exist|Directory exists/i.test(message)) {
         ensureDirPromise = null
         throw error
       }

@@ -86,7 +86,7 @@ Without `android/keystore.properties`, `bundleRelease` still builds but is **uns
 - [x] Upload keystore created and backed up offline
 - [x] `signingConfigs.release` works; `bundleRelease` produces signed AAB
 - [x] Keystore / `keystore.properties` not committed
-- [ ] Branded adaptive icon + splash shipped
+- [x] Branded adaptive icon + splash shipped
 - [x] `npm run android:release` syncs and builds cleanly
 - [x] App installs from release AAB/APK on a physical device
 - [x] Core flows QA’d
